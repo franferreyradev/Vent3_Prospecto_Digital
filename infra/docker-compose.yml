@@ -3,7 +3,7 @@ services:
     image: postgres:16
     container_name: vent3-db
     ports:
-      - "5432:5432"
+      - "5433:5432"
     environment:
       POSTGRES_USER: vent3
       POSTGRES_PASSWORD: vent3dev
