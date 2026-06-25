@@ -1,0 +1,47 @@
+# Dependencias JS
+node_modules/
+.pnp
+.pnp.js
+
+# Variables de entorno
+.env
+.env.local
+.env.*.local
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+*.egg-info/
+.uv/
+uv.lock
+
+# Build output
+.next/
+dist/
+build/
+out/
+
+# Cache de herramientas
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.eslintcache
+
+# Contratos generados automáticamente
+packages/contracts/src/api.ts
+
+# Editores
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/settings.json
+
+# Logs
+*.log
+npm-debug.log*
