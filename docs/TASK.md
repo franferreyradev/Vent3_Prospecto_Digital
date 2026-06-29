@@ -7,20 +7,19 @@
 
 ## ESTADO ACTUAL
 
-**Tarea en progreso:** Ninguna — T1 completada.
+**Tarea en progreso:** Ninguna — T2 completada.
 **Bloqueantes activos:** Ninguno.
-**Última sesión:** 25 de junio de 2026 — T1 Setup del monorepo completado.
+**Última sesión:** 29 de junio de 2026 — T2 Infraestructura de producción completada.
 
 ---
 
 ## PRÓXIMA TAREA
 
-**T2 — Contratación de infraestructura**
+**T3 — Schema SQL inicial y migraciones Alembic**
 
-Crear cuentas y proyectos en Railway (backend + PostgreSQL), Vercel (frontend) y Cloudflare R2 (storage).
-Configurar dominios: apuntar `www.vent3.com.ar` a Vercel y `api.vent3.com.ar` a Railway.
+Crear todas las tablas, ENUMs, triggers de inmutabilidad de `audit_log` y `updated_at`, índices y constraints.
 
-Referencia completa en `docs/PLAN.md § Sección 4 · T2`.
+Referencia completa en `docs/PLAN.md § Sección 4 · T3`.
 
 ---
 
@@ -29,7 +28,7 @@ Referencia completa en `docs/PLAN.md § Sección 4 · T2`.
 ### FASE 0 — Fundación
 
 - [x] **T1** — Setup del monorepo ✅ · 25 jun 2026
-- [ ] **T2** — Contratación de infraestructura (Railway, Vercel, Cloudflare R2, DNS)
+- [x] **T2** — Contratación de infraestructura ✅ · 29 jun 2026
 - [ ] **T3** — Schema SQL inicial y migraciones Alembic
 - [ ] **T4** — Modelos SQLAlchemy y repositorios base
 - [ ] **T5** — Schemas Pydantic y generación de tipos TypeScript
@@ -77,6 +76,7 @@ Referencia completa en `docs/PLAN.md § Sección 4 · T2`.
 ## COMPLETADAS
 
 - [x] **T1** — Setup del monorepo ✅ · 25 jun 2026
+- [x] **T2** — Contratación de infraestructura ✅ · 29 jun 2026
 
 ---
 
@@ -116,6 +116,12 @@ Referencia completa en `docs/PLAN.md § Sección 4 · T2`.
 **[T1 · 25 jun 2026]** Puerto 5432 ocupado por otro proyecto en la máquina de desarrollo (`alcosto-db-1`). `infra/docker-compose.yml` usa puerto 5433 para vent3-db. `DATABASE_URL` en `apps/api/.env` debe apuntar a `localhost:5433`.
 
 **[T1 · 25 jun 2026]** `Settings` en `config.py` necesita `extra="ignore"` en ConfigDict porque el `.env` contiene variables del frontend (`NEXT_PUBLIC_API_URL`) que pydantic v2 rechaza por defecto si no están declaradas en el modelo.
+
+**[T2 · 29 jun 2026]** Infraestructura de producción operativa: Railway (API + PostgreSQL), Vercel (frontend), Cloudflare R2 (bucket vent3-prospectos). Dominios `api.vent3.com.ar` y `www.vent3.com.ar` activos con SSL. Checks C1-C4 verdes.
+
+**[T2 · 29 jun 2026]** Los atributos de `Settings` en `config.py` son UPPERCASE (`s.R2_ACCOUNT_ID`, no `s.r2_account_id`). Al escribir scripts o checks que usen `settings`, usar el nombre exacto de la variable de entorno.
+
+**[T2 · 29 jun 2026]** `.env.example` no pudo ser modificado automáticamente por restricciones del agente. Las secciones nuevas (comentarios DATABASE_URL local/Railway, R2_PUBLIC_URL, y bloque NEXT.JS) quedaron pendientes de agregar manualmente.
 
 ---
 > Actualizar este archivo al finalizar cada sesión. Formato sugerido para COMPLETADAS:
