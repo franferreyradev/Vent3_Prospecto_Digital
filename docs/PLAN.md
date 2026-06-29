@@ -638,6 +638,10 @@ export default config;
 **Alternativa descartada:** mantener el Excel como fuente de verdad y sincronizar periódicamente.
 **Justificación:** el Excel es el problema que el sistema viene a resolver. Mantener sincronización implicaría perpetuar la situación actual donde Excel sigue siendo el sistema operativo de facto. La migración one-shot fuerza la transición: tras la migración, todos los cambios se hacen en el sistema y el Excel queda como archivo histórico.
 
+**DECISIÓN:** PostgreSQL en Railway (servicio gestionado integrado al proyecto) en lugar de instancia VPS propia, Supabase o AWS RDS.
+**Alternativas descartadas:** Supabase (BaaS completo), AWS RDS, Neon (serverless), VPS propio con PostgreSQL gestionado a mano.
+**Justificación:** Railway provee PostgreSQL 16 con backups automáticos, SSL by default, y permite usar la URL interna del proyecto (`postgres.railway.internal`) sin latencia de red externa ni costo de egress. El costo para el volumen esperado de este sistema es marginal. Supabase fue descartado porque este proyecto usa FastAPI + SQLAlchemy en lugar del client de Supabase, lo que elimina las ventajas de su ecosistema. Neon fue descartado por el cold start inaceptable para el endpoint público del resolver. Ver detalles completos en `docs/adr/001-infraestructura.md`.
+
 **DECISIÓN:** Header secreto `X-Internal-Token` para proteger el endpoint de resolución interno, en lugar de IP whitelist.
 **Alternativa descartada:** restringir `/api/internal/*` por IP del servidor de Next.js.
 **Justificación:** la IP del servidor de Vercel (donde corre el SSR de Next.js) no es estable. El header secreto compartido vía variable de entorno entre Vercel y Railway es estable, fácil de rotar y suficiente para impedir consultas directas al endpoint interno desde el navegador o herramientas externas.
