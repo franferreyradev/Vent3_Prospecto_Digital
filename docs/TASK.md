@@ -7,19 +7,19 @@
 
 ## ESTADO ACTUAL
 
-**Tarea en progreso:** Ninguna — T3 completada.
+**Tarea en progreso:** Ninguna — T4 completada.
 **Bloqueantes activos:** Ninguno.
-**Última sesión:** 29 de junio de 2026 — T3 Schema SQL inicial y migraciones Alembic completada.
+**Última sesión:** 29 de junio de 2026 — T4 Modelos SQLAlchemy 2.0 y repositorios base completada.
 
 ---
 
 ## PRÓXIMA TAREA
 
-**T4 — Modelos SQLAlchemy y repositorios base**
+**T5 — Schemas Pydantic y generación de tipos TypeScript**
 
-Modelos ORM de las 9 tablas, sesión de DB con dependency injection, repositorios con métodos CRUD básicos.
+Schemas Pydantic v2 para request/response de cada entidad, generación automática de tipos TypeScript desde OpenAPI.
 
-Referencia completa en `docs/PLAN.md § Sección 4 · T4`.
+Referencia completa en `docs/PLAN.md § Sección 5 · T5`.
 
 ---
 
@@ -30,7 +30,7 @@ Referencia completa en `docs/PLAN.md § Sección 4 · T4`.
 - [x] **T1** — Setup del monorepo ✅ · 25 jun 2026
 - [x] **T2** — Contratación de infraestructura ✅ · 29 jun 2026
 - [x] **T3** — Schema SQL inicial y migraciones Alembic ✅ · 29 jun 2026
-- [ ] **T4** — Modelos SQLAlchemy y repositorios base
+- [x] **T4** — Modelos SQLAlchemy y repositorios base ✅ · 29 jun 2026
 - [ ] **T5** — Schemas Pydantic y generación de tipos TypeScript
 
 ### FASE 1 — Backend core
@@ -78,6 +78,7 @@ Referencia completa en `docs/PLAN.md § Sección 4 · T4`.
 - [x] **T1** — Setup del monorepo ✅ · 25 jun 2026
 - [x] **T2** — Contratación de infraestructura ✅ · 29 jun 2026
 - [x] **T3** — Schema SQL inicial y migraciones Alembic ✅ · 29 jun 2026
+- [x] **T4** — Modelos SQLAlchemy 2.0 y repositorios base ✅ · 29 jun 2026
 
 ---
 
@@ -133,6 +134,22 @@ Referencia completa en `docs/PLAN.md § Sección 4 · T4`.
 **[T3 · 29 jun 2026]** `password_hash VARCHAR(60)` es exactamente el largo de un hash bcrypt estándar (7 prefijo + 22 salt + 31 hash = 60 chars). Los tests que necesiten insertar usuarios dummy deben generar un hash real con `bcrypt.hashpw(b"test", bcrypt.gensalt(rounds=4))`.
 
 **[T3 · 29 jun 2026]** El rol `vent3_app` no existe en Railway (usa el rol por defecto de PostgreSQL). El bloque REVOKE en la migración 003 es condicional (`IF EXISTS`) — no falla si el rol no existe. La inmutabilidad de audit_log está garantizada por el trigger `trg_audit_inmutable`, independientemente del rol.
+
+**[T4 · 29 jun 2026]** FastAPI >= 0.93: usar `lifespan` (asynccontextmanager) en lugar del deprecated `on_event`. Ver `apps/api/src/main.py`.
+
+**[T4 · 29 jun 2026]** ENUMs de PostgreSQL en SQLAlchemy ORM: deben usar `postgresql.ENUM(..., name='enum_name', create_type=False)`. Sin `create_type=False`, SQLAlchemy intenta `CREATE TYPE` al crear tablas y falla porque los ENUMs ya existen en la DB. Todos los ENUMs están en `apps/api/src/models/enums.py`.
+
+**[T4 · 29 jun 2026]** `ip_origen` en `audit_log` es tipo `INET` en PostgreSQL (no VARCHAR). Requiere `postgresql.INET` en el modelo ORM para que `alembic check` no reporte diferencias de tipo.
+
+**[T4 · 29 jun 2026]** `alembic check` con modelos vs schema: los índices creados por SQL raw en las migraciones (no declarados en los modelos) generan falsos positivos de "Detected removed index". Solución: `include_object` en `alembic/env.py` que ignora índices que existen solo en DB. Ver `apps/api/alembic/env.py`.
+
+**[T4 · 29 jun 2026]** `expire_on_commit=False` es CRÍTICO en `AsyncSessionLocal`. Sin esto, acceder a atributos de un objeto ORM después del commit genera `DetachedInstanceError` (lazy load imposible en async). Ver `apps/api/src/core/db.py`.
+
+**[T4 · 29 jun 2026]** En tests con `AsyncSession` y triggers de DB: después de `session.flush()`, el objeto Python en memoria no refleja los cambios del trigger. Llamar `await session.refresh(objeto)` explícitamente para recargar los campos actualizados por triggers (ej: `nombre_normalizado` en `principios_activos`).
+
+**[T4 · 29 jun 2026]** `selectinload(Relacion).where(...)` NO existe en SQLAlchemy. Para cargar relaciones con filtros usar `with_loader_criteria` o filtrar en Python post-carga. Ver `apps/api/src/repositories/productos.py`.
+
+**[T4 · 29 jun 2026]** Tests acumulados al cierre de T4: **18/18 verdes** (1 T1 + 7 T3 + 10 T4).
 
 ---
 > Actualizar este archivo al finalizar cada sesión. Formato sugerido para COMPLETADAS:
