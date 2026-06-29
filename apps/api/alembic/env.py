@@ -12,10 +12,20 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Cuando existan modelos SQLAlchemy, importar su Base.metadata acá:
-# from src.models import Base
-# target_metadata = Base.metadata
-target_metadata = None
+from src.models.base import Base
+from src.models import (  # noqa: F401 — side effect: registra todos los modelos en Base.metadata
+    Usuario,
+    Producto,
+    PrincipioActivo,
+    ProductoPrincipio,
+    Prospecto,
+    ProductoProspecto,
+    GtinRegistro,
+    AuditLog,
+    ProductoMaterialesPackaging,
+)
+
+target_metadata = Base.metadata
 
 
 def get_url() -> str:
@@ -35,8 +45,21 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
+def include_object(object, name, type_, reflected, compare_to):
+    # Los índices son creados por SQL raw en las migraciones (no en los modelos).
+    # Ignorar índices que están en la DB pero no en los modelos para evitar
+    # falsos positivos en alembic check/autogenerate.
+    if type_ == "index" and reflected and compare_to is None:
+        return False
+    return True
+
+
 def do_run_migrations(connection: Connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata)
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        include_object=include_object,
+    )
     with context.begin_transaction():
         context.run_migrations()
 
