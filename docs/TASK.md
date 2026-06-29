@@ -7,19 +7,19 @@
 
 ## ESTADO ACTUAL
 
-**Tarea en progreso:** Ninguna — T5 completada.
+**Tarea en progreso:** Ninguna — T6 completada.
 **Bloqueantes activos:** Ninguno.
-**Última sesión:** 29 de junio de 2026 — T5 Schemas Pydantic v2 y tipos TypeScript completada.
+**Última sesión:** 29 de junio de 2026 — T6 Auth JWT en cookie httpOnly completada.
 
 ---
 
 ## PRÓXIMA TAREA
 
-**T6 — Auth: login del admin + JWT en cookie httpOnly**
+**T7 — Middleware de autorización por rol**
 
-Endpoints `/api/auth/login`, `/api/auth/logout`, `/api/auth/me`. Bcrypt costo 12 (sin passlib — usar bcrypt directo). JWT en cookie httpOnly. Lockout 5 intentos / 15 min.
+Refinar `require_admin` y agregar middleware de roles cuando haya más de uno. Proteger con `Depends(require_admin)` todos los endpoints del panel admin que se implementen en T8+.
 
-Referencia completa en `docs/PLAN.md § Sección 4 · T6`.
+Referencia completa en `docs/PLAN.md § Sección 4 · T7`.
 
 ---
 
@@ -35,7 +35,7 @@ Referencia completa en `docs/PLAN.md § Sección 4 · T6`.
 
 ### FASE 1 — Backend core
 
-- [ ] **T6** — Auth: login del admin + JWT en cookie httpOnly
+- [x] **T6** — Auth: login del admin + JWT en cookie httpOnly ✅ · 29 jun 2026
 - [ ] **T7** — Middleware de autorización por rol
 - [ ] **T8** — Servicio de auditoría (audit_log)
 - [ ] **T9** — CRUD de productos
@@ -80,6 +80,7 @@ Referencia completa en `docs/PLAN.md § Sección 4 · T6`.
 - [x] **T3** — Schema SQL inicial y migraciones Alembic ✅ · 29 jun 2026
 - [x] **T4** — Modelos SQLAlchemy 2.0 y repositorios base ✅ · 29 jun 2026
 - [x] **T5** — Schemas Pydantic y generación de tipos TypeScript ✅ · 29 jun 2026
+- [x] **T6** — Auth: login del admin + JWT en cookie httpOnly ✅ · 29 jun 2026
 
 ---
 
@@ -161,6 +162,18 @@ Referencia completa en `docs/PLAN.md § Sección 4 · T6`.
 **[T5 · 29 jun 2026]** El OpenAPI de FastAPI solo incluye schemas que están wired a endpoints con `response_model`. Para exponer todos los schemas antes de T6+, se sobrescribe `app.openapi()` en `main.py` con una función que inyecta los schemas en `components/schemas`. Los `$defs` anidados se extraen al nivel raíz antes de insertar.
 
 **[T5 · 29 jun 2026]** Tests acumulados al cierre de T5: **11/11 verdes** (1 T1 + 10 T5 schemas). Los 17 tests de T3/T4 (DB integration) se skipean sin PostgreSQL local en `:5433` — comportamiento esperado.
+
+**[T6 · 29 jun 2026]** `ENVIRONMENT: str = "production"` agregado a `Settings` con default producción. En tests, `conftest.py` setea `ENVIRONMENT=development` → `secure=False` en la cookie. En Railway setear `ENVIRONMENT=production` para activar `secure=True`. Sin este flag las cookies no se envían sobre HTTP en desarrollo local.
+
+**[T6 · 29 jun 2026]** TC4 (lockout) usa un usuario temporal `lockout_tc4@vent3.test` creado y eliminado dentro del mismo test (try/finally). No usa el admin seed — el admin nunca se bloquea durante los tests. Patrón a replicar en futuros tests de lockout.
+
+**[T6 · 29 jun 2026]** httpx 0.27+ depreca `cookies={}` per-request. Usar `client.cookies.set(key, value)` sobre la instancia del cliente. Ver `tests/test_auth.py` TC6, TC7, TC8.
+
+**[T6 · 29 jun 2026]** python-jose funcionó correctamente con HS256 sin gotchas. `ExpiredSignatureError` es subclase de `JWTError` — atrapar `JWTError` es suficiente para cubrir ambos casos en `decodificar_token()`. Retorna `None` en cualquier error de validación.
+
+**[T6 · 29 jun 2026]** Dependencias de auth disponibles en `src/core/deps.py`: `get_current_user` (verifica cookie + JWT + usuario activo), `require_admin` (verifica rol == 'admin'). Router de auth en `src/routers/auth.py` con prefix `/api/auth`.
+
+**[T6 · 29 jun 2026]** Tests acumulados al cierre de T6: **13/13 verdes** (1 health + 10 schemas + 2 auth sin DB). 6 tests de auth requieren DB y skipean sin PostgreSQL — comportamiento esperado.
 
 ---
 > Actualizar este archivo al finalizar cada sesión. Formato sugerido para COMPLETADAS:
