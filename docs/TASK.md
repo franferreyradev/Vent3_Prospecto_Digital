@@ -7,19 +7,19 @@
 
 ## ESTADO ACTUAL
 
-**Tarea en progreso:** Ninguna — T4 completada.
+**Tarea en progreso:** Ninguna — T5 completada.
 **Bloqueantes activos:** Ninguno.
-**Última sesión:** 29 de junio de 2026 — T4 Modelos SQLAlchemy 2.0 y repositorios base completada.
+**Última sesión:** 29 de junio de 2026 — T5 Schemas Pydantic v2 y tipos TypeScript completada.
 
 ---
 
 ## PRÓXIMA TAREA
 
-**T5 — Schemas Pydantic y generación de tipos TypeScript**
+**T6 — Auth: login del admin + JWT en cookie httpOnly**
 
-Schemas Pydantic v2 para request/response de cada entidad, generación automática de tipos TypeScript desde OpenAPI.
+Endpoints `/api/auth/login`, `/api/auth/logout`, `/api/auth/me`. Bcrypt costo 12 (sin passlib — usar bcrypt directo). JWT en cookie httpOnly. Lockout 5 intentos / 15 min.
 
-Referencia completa en `docs/PLAN.md § Sección 5 · T5`.
+Referencia completa en `docs/PLAN.md § Sección 4 · T6`.
 
 ---
 
@@ -31,7 +31,7 @@ Referencia completa en `docs/PLAN.md § Sección 5 · T5`.
 - [x] **T2** — Contratación de infraestructura ✅ · 29 jun 2026
 - [x] **T3** — Schema SQL inicial y migraciones Alembic ✅ · 29 jun 2026
 - [x] **T4** — Modelos SQLAlchemy y repositorios base ✅ · 29 jun 2026
-- [ ] **T5** — Schemas Pydantic y generación de tipos TypeScript
+- [x] **T5** — Schemas Pydantic y generación de tipos TypeScript ✅ · 29 jun 2026
 
 ### FASE 1 — Backend core
 
@@ -79,6 +79,7 @@ Referencia completa en `docs/PLAN.md § Sección 5 · T5`.
 - [x] **T2** — Contratación de infraestructura ✅ · 29 jun 2026
 - [x] **T3** — Schema SQL inicial y migraciones Alembic ✅ · 29 jun 2026
 - [x] **T4** — Modelos SQLAlchemy 2.0 y repositorios base ✅ · 29 jun 2026
+- [x] **T5** — Schemas Pydantic y generación de tipos TypeScript ✅ · 29 jun 2026
 
 ---
 
@@ -150,6 +151,16 @@ Referencia completa en `docs/PLAN.md § Sección 5 · T5`.
 **[T4 · 29 jun 2026]** `selectinload(Relacion).where(...)` NO existe en SQLAlchemy. Para cargar relaciones con filtros usar `with_loader_criteria` o filtrar en Python post-carga. Ver `apps/api/src/repositories/productos.py`.
 
 **[T4 · 29 jun 2026]** Tests acumulados al cierre de T4: **18/18 verdes** (1 T1 + 7 T3 + 10 T4).
+
+**[T5 · 29 jun 2026]** `pydantic[email]` (email-validator) no estaba en el `pyproject.toml`. Se agregó como dependencia al usar `EmailStr` en `LoginRequest`. Ejecutar `uv sync` al hacer checkout fresco.
+
+**[T5 · 29 jun 2026]** Los computed_fields (`tipo_landing`, `tiene_dos_prospectos`) de `ResolverResponse` requieren Pydantic v2 (ya instalado). En Pydantic v1 no existe `@computed_field`. No hay restricción adicional de versión más allá de `pydantic>=2.0` que ya estaba declarada.
+
+**[T5 · 29 jun 2026]** `packages/contracts/src/api.ts` está en `.gitignore` como archivo generado (correcto). No se commitea. Se genera corriendo `npm run generate` desde `packages/contracts/` con la API corriendo en `:8000`.
+
+**[T5 · 29 jun 2026]** El OpenAPI de FastAPI solo incluye schemas que están wired a endpoints con `response_model`. Para exponer todos los schemas antes de T6+, se sobrescribe `app.openapi()` en `main.py` con una función que inyecta los schemas en `components/schemas`. Los `$defs` anidados se extraen al nivel raíz antes de insertar.
+
+**[T5 · 29 jun 2026]** Tests acumulados al cierre de T5: **11/11 verdes** (1 T1 + 10 T5 schemas). Los 17 tests de T3/T4 (DB integration) se skipean sin PostgreSQL local en `:5433` — comportamiento esperado.
 
 ---
 > Actualizar este archivo al finalizar cada sesión. Formato sugerido para COMPLETADAS:
