@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     R2_PUBLIC_URL: str
 
     FRONTEND_URL: str = "http://localhost:3000"
+    ENVIRONMENT: str = "production"
 
 
 settings = Settings()
