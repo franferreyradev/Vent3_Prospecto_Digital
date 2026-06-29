@@ -7,19 +7,20 @@
 
 ## ESTADO ACTUAL
 
-**Tarea en progreso:** Ninguna — T6 completada.
+**Tarea en progreso:** Ninguna — T7+T8 completadas.
 **Bloqueantes activos:** Ninguno.
-**Última sesión:** 29 de junio de 2026 — T6 Auth JWT en cookie httpOnly completada.
+**Última sesión:** 29 de junio de 2026 — T7+T8 autorización por rol y servicio de auditoría completados.
 
 ---
 
 ## PRÓXIMA TAREA
 
-**T7 — Middleware de autorización por rol**
+**T9 — CRUD de productos**
 
-Refinar `require_admin` y agregar middleware de roles cuando haya más de uno. Proteger con `Depends(require_admin)` todos los endpoints del panel admin que se implementen en T8+.
+Endpoints de gestión de productos: crear, listar, obtener, activar/desactivar.
+Todos protegidos con `Depends(require_admin)` según el patrón documentado en `tests/test_autorizacion.py`.
 
-Referencia completa en `docs/PLAN.md § Sección 4 · T7`.
+Referencia completa en `docs/PLAN.md § Sección 3 · T9`.
 
 ---
 
@@ -36,8 +37,8 @@ Referencia completa en `docs/PLAN.md § Sección 4 · T7`.
 ### FASE 1 — Backend core
 
 - [x] **T6** — Auth: login del admin + JWT en cookie httpOnly ✅ · 29 jun 2026
-- [ ] **T7** — Middleware de autorización por rol
-- [ ] **T8** — Servicio de auditoría (audit_log)
+- [x] **T7** — Middleware de autorización por rol ✅ · 29 jun 2026
+- [x] **T8** — Servicio de auditoría (audit_log) ✅ · 29 jun 2026
 - [ ] **T9** — CRUD de productos
 - [ ] **T10** — Cliente Cloudflare R2 y upload de PDFs
 - [ ] **T11** — CRUD de prospectos con upload y activación
@@ -81,6 +82,8 @@ Referencia completa en `docs/PLAN.md § Sección 4 · T7`.
 - [x] **T4** — Modelos SQLAlchemy 2.0 y repositorios base ✅ · 29 jun 2026
 - [x] **T5** — Schemas Pydantic y generación de tipos TypeScript ✅ · 29 jun 2026
 - [x] **T6** — Auth: login del admin + JWT en cookie httpOnly ✅ · 29 jun 2026
+- [x] **T7** — Middleware de autorización por rol ✅ · 29 jun 2026
+- [x] **T8** — Servicio de auditoría (audit_log) ✅ · 29 jun 2026
 
 ---
 
@@ -174,6 +177,16 @@ Referencia completa en `docs/PLAN.md § Sección 4 · T7`.
 **[T6 · 29 jun 2026]** Dependencias de auth disponibles en `src/core/deps.py`: `get_current_user` (verifica cookie + JWT + usuario activo), `require_admin` (verifica rol == 'admin'). Router de auth en `src/routers/auth.py` con prefix `/api/auth`.
 
 **[T6 · 29 jun 2026]** Tests acumulados al cierre de T6: **13/13 verdes** (1 health + 10 schemas + 2 auth sin DB). 6 tests de auth requieren DB y skipean sin PostgreSQL — comportamiento esperado.
+
+**[T7+T8 · 29 jun 2026]** `require_admin` ya existía en `src/core/deps.py` desde T6. T7 agrega 5 TCs dedicados en `test_autorizacion.py`. Patrón `Depends(require_admin)` documentado ahí.
+
+**[T7+T8 · 29 jun 2026]** GOTCHA — event loop / NullPool: los tests que hacen requests ASGI a una app con el engine de módulo (`app` de `src/main.py`) fallan con "Future attached to a different loop" cuando corren secuencialmente con event loops function-scoped (pytest-asyncio 1.4.0). Fix en `test_autorizacion.py`: overridear `get_db` con `_get_db_nullpool` que usa `sqlalchemy.pool.NullPool`. Cada request crea su propia conexión — sin pool, sin conflicto de loops. Los tests de `test_auth.py` tienen este problema latente cuando se corre contra el dev DB; pasan correctamente contra el test DB (donde corren los 13 tests de T6).
+
+**[T7+T8 · 29 jun 2026]** `AuditoriaService` en `src/services/auditoria.py`. Patrón: `AuditoriaService(session)` → `await service.registrar_cambio(...)`. El método NUNCA propaga excepción — loguea con `logger.error()` y retorna None silenciosamente. Esto es intencional: un fallo de auditoría no debe revertir la operación principal.
+
+**[T7+T8 · 29 jun 2026]** TC5 de test_auditoria (inmutabilidad): usa `begin_nested()` (SAVEPOINT) para intentar el UPDATE dentro de un savepoint. Si el trigger lanza excepción, el savepoint se revierte automáticamente y la transacción exterior queda intacta. Sin esto, el `trans.rollback()` del fixture fallaría.
+
+**[T7+T8 · 29 jun 2026]** Tests acumulados al cierre de T7+T8: **24/24 verdes** (13 anteriores + 5 T7 + 6 T8). Verificados contra el dev DB local (`vent3_db` en puerto 5433).
 
 ---
 > Actualizar este archivo al finalizar cada sesión. Formato sugerido para COMPLETADAS:
