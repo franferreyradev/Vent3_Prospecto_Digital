@@ -7,19 +7,19 @@
 
 ## ESTADO ACTUAL
 
-**Tarea en progreso:** Ninguna — T2 completada.
+**Tarea en progreso:** Ninguna — T3 completada.
 **Bloqueantes activos:** Ninguno.
-**Última sesión:** 29 de junio de 2026 — T2 Infraestructura de producción completada.
+**Última sesión:** 29 de junio de 2026 — T3 Schema SQL inicial y migraciones Alembic completada.
 
 ---
 
 ## PRÓXIMA TAREA
 
-**T3 — Schema SQL inicial y migraciones Alembic**
+**T4 — Modelos SQLAlchemy y repositorios base**
 
-Crear todas las tablas, ENUMs, triggers de inmutabilidad de `audit_log` y `updated_at`, índices y constraints.
+Modelos ORM de las 9 tablas, sesión de DB con dependency injection, repositorios con métodos CRUD básicos.
 
-Referencia completa en `docs/PLAN.md § Sección 4 · T3`.
+Referencia completa en `docs/PLAN.md § Sección 4 · T4`.
 
 ---
 
@@ -29,7 +29,7 @@ Referencia completa en `docs/PLAN.md § Sección 4 · T3`.
 
 - [x] **T1** — Setup del monorepo ✅ · 25 jun 2026
 - [x] **T2** — Contratación de infraestructura ✅ · 29 jun 2026
-- [ ] **T3** — Schema SQL inicial y migraciones Alembic
+- [x] **T3** — Schema SQL inicial y migraciones Alembic ✅ · 29 jun 2026
 - [ ] **T4** — Modelos SQLAlchemy y repositorios base
 - [ ] **T5** — Schemas Pydantic y generación de tipos TypeScript
 
@@ -77,6 +77,7 @@ Referencia completa en `docs/PLAN.md § Sección 4 · T3`.
 
 - [x] **T1** — Setup del monorepo ✅ · 25 jun 2026
 - [x] **T2** — Contratación de infraestructura ✅ · 29 jun 2026
+- [x] **T3** — Schema SQL inicial y migraciones Alembic ✅ · 29 jun 2026
 
 ---
 
@@ -122,6 +123,16 @@ Referencia completa en `docs/PLAN.md § Sección 4 · T3`.
 **[T2 · 29 jun 2026]** Los atributos de `Settings` en `config.py` son UPPERCASE (`s.R2_ACCOUNT_ID`, no `s.r2_account_id`). Al escribir scripts o checks que usen `settings`, usar el nombre exacto de la variable de entorno.
 
 **[T2 · 29 jun 2026]** `.env.example` no pudo ser modificado automáticamente por restricciones del agente. Las secciones nuevas (comentarios DATABASE_URL local/Railway, R2_PUBLIC_URL, y bloque NEXT.JS) quedaron pendientes de agregar manualmente.
+
+**[T3 · 29 jun 2026]** Railway CLI instalado pero no linkeado al proyecto (no hay proyecto linkeado en la máquina). Las migraciones se aplican en Railway via `alembic upgrade head` en el `startCommand` de `railway.toml`. Esto corre en cada deploy — es aceptable para el MVP ya que las migraciones son idempotentes. Para futura granularidad, linkear con `railway link` y usar `railway run alembic upgrade head` de forma explícita.
+
+**[T3 · 29 jun 2026]** `passlib[bcrypt]` (1.7.x) es incompatible con `bcrypt>=4.x` — la función `detect_wrap_bug` falla al inicializar el backend. La migración 004 usa `bcrypt` directamente (sin passlib) para hashear la contraseña del admin. Para T6 (auth), considerar el mismo patrón o actualizar a `bcrypt-compat` / `argon2-cffi`.
+
+**[T3 · 29 jun 2026]** pytest-asyncio 1.4.0 (auto mode) usa un event loop por test (function scope). Los fixtures de conexión asyncpg deben ser function-scoped para evitar "Future attached to a different loop". Ver `tests/test_schema.py`.
+
+**[T3 · 29 jun 2026]** `password_hash VARCHAR(60)` es exactamente el largo de un hash bcrypt estándar (7 prefijo + 22 salt + 31 hash = 60 chars). Los tests que necesiten insertar usuarios dummy deben generar un hash real con `bcrypt.hashpw(b"test", bcrypt.gensalt(rounds=4))`.
+
+**[T3 · 29 jun 2026]** El rol `vent3_app` no existe en Railway (usa el rol por defecto de PostgreSQL). El bloque REVOKE en la migración 003 es condicional (`IF EXISTS`) — no falla si el rol no existe. La inmutabilidad de audit_log está garantizada por el trigger `trg_audit_inmutable`, independientemente del rol.
 
 ---
 > Actualizar este archivo al finalizar cada sesión. Formato sugerido para COMPLETADAS:
