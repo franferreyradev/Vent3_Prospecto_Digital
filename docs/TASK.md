@@ -7,20 +7,17 @@
 
 ## ESTADO ACTUAL
 
-**Tarea en progreso:** Ninguna — T7+T8 completadas.
-**Bloqueantes activos:** Ninguno.
-**Última sesión:** 29 de junio de 2026 — T7+T8 autorización por rol y servicio de auditoría completados.
+**Tarea en progreso:** Ninguna — T9 completada.
+**Bloqueantes activos:** Ninguno (ver nota sobre `test_auth.py` en Notas de sesión — preexistente, no bloquea T9).
+**Última sesión:** 2 de julio de 2026 — T9 CRUD de productos completado.
 
 ---
 
 ## PRÓXIMA TAREA
 
-**T9 — CRUD de productos**
+**T10 — Cliente Cloudflare R2 y upload de PDFs**
 
-Endpoints de gestión de productos: crear, listar, obtener, activar/desactivar.
-Todos protegidos con `Depends(require_admin)` según el patrón documentado en `tests/test_autorizacion.py`.
-
-Referencia completa en `docs/PLAN.md § Sección 3 · T9`.
+Referencia completa en `docs/PLAN.md § Sección 3 · T10`.
 
 ---
 
@@ -39,7 +36,7 @@ Referencia completa en `docs/PLAN.md § Sección 3 · T9`.
 - [x] **T6** — Auth: login del admin + JWT en cookie httpOnly ✅ · 29 jun 2026
 - [x] **T7** — Middleware de autorización por rol ✅ · 29 jun 2026
 - [x] **T8** — Servicio de auditoría (audit_log) ✅ · 29 jun 2026
-- [ ] **T9** — CRUD de productos
+- [x] **T9** — CRUD de productos ✅ · 2 jul 2026
 - [ ] **T10** — Cliente Cloudflare R2 y upload de PDFs
 - [ ] **T11** — CRUD de prospectos con upload y activación
 - [ ] **T12** — Resolución pública GTIN → prospectos
@@ -84,6 +81,7 @@ Referencia completa en `docs/PLAN.md § Sección 3 · T9`.
 - [x] **T6** — Auth: login del admin + JWT en cookie httpOnly ✅ · 29 jun 2026
 - [x] **T7** — Middleware de autorización por rol ✅ · 29 jun 2026
 - [x] **T8** — Servicio de auditoría (audit_log) ✅ · 29 jun 2026
+- [x] **T9** — CRUD de productos ✅ · 2 jul 2026
 
 ---
 
@@ -187,6 +185,18 @@ Referencia completa en `docs/PLAN.md § Sección 3 · T9`.
 **[T7+T8 · 29 jun 2026]** TC5 de test_auditoria (inmutabilidad): usa `begin_nested()` (SAVEPOINT) para intentar el UPDATE dentro de un savepoint. Si el trigger lanza excepción, el savepoint se revierte automáticamente y la transacción exterior queda intacta. Sin esto, el `trans.rollback()` del fixture fallaría.
 
 **[T7+T8 · 29 jun 2026]** Tests acumulados al cierre de T7+T8: **24/24 verdes** (13 anteriores + 5 T7 + 6 T8). Verificados contra el dev DB local (`vent3_db` en puerto 5433).
+
+**[T9 · 2 jul 2026]** Patrón NullPool de T7+T8 se reusó exactamente igual en `test_productos.py`, aplicado sobre la app real (`from src.main import app`) vía `app.dependency_overrides[get_db] = _get_db_nullpool` — así el fixture `auth_client` puede loguear contra `/api/auth/login` y reusar la cookie contra los endpoints de productos con la misma app. Funcionó sin ajustes: 10/10 TCs verdes.
+
+**[T9 · 2 jul 2026]** `model_dump(exclude_none=True)` en Pydantic v2 se comportó como se esperaba: solo incluye las claves con valor no-`None` enviadas en el request, permitiendo el PATCH semántico sin pisar campos no enviados. Sin sorpresas.
+
+**[T9 · 2 jul 2026]** GOTCHA nuevo — `session.refresh(producto)` sin `attribute_names` expira TODOS los atributos del objeto, incluidas relaciones ya eager-cargadas (`principios`). En AsyncSession eso dispara `MissingGreenlet` al serializar la respuesta porque el lazy-load implícito no puede correr fuera de un `await`. Fix: `await session.refresh(producto, attribute_names=["updated_at"])` — refresca solo la columna que necesitamos (la que toca el trigger `trg_updated_at_productos`) y no toca las relaciones ya cargadas.
+
+**[T9 · 2 jul 2026]** GOTCHA — `ProductoDetalleResponse.principios` no puede poblarse con `model_validate(producto)` directo: `ProductoPrincipio` no tiene columna `nombre`, vive en `PrincipioActivo.nombre` vía la relación `principio`. Se agregó `selectinload(Producto.principios).selectinload(ProductoPrincipio.principio)` en `get_detalle_completo()` (repo) y se arma `PrincipioActivoEnProducto` a mano en el router (`_to_detalle_response`) mapeando `pp.principio.nombre`.
+
+**[T9 · 2 jul 2026]** `audit_log` es append-only también contra `DELETE`, no solo `UPDATE` (el trigger bloquea ambos). El teardown de `productos_seed` en los tests intentaba borrar filas de `audit_log` generadas por los TCs de auditoría y explotaba con "audit_log es inmutable". Fix: el teardown solo borra `productos`; las filas de auditoría quedan (esperado, coherente con la regla de negocio).
+
+**[T9 · 2 jul 2026]** [BLOQUEANTE] preexistente, no introducido por T9: `test_auth.py` tiene 2 TCs (`test_login_email_inexistente...`, `test_lockout_tras_cinco_intentos_fallidos`) que fallan con 422 en lugar de 401 al correr el suite completo contra la DB de test local (puerto 5433, container `vent3-db`). Confirmado con `git stash` que la falla existe también en `main` sin los cambios de T9 — es el mismo gotcha de event loop / DB que ya se documentó en T7+T8 (línea de arriba), simplemente se manifiesta distinto según el entorno de ejecución. No se tocó `test_auth.py` porque está fuera del alcance de T9. Suite completo al cierre: **55 passed, 2 failed (preexistentes)** — de los cuales 10/10 son los nuevos de T9.
 
 ---
 > Actualizar este archivo al finalizar cada sesión. Formato sugerido para COMPLETADAS:
