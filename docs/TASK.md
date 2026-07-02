@@ -7,17 +7,17 @@
 
 ## ESTADO ACTUAL
 
-**Tarea en progreso:** Ninguna — T9 completada.
-**Bloqueantes activos:** Ninguno (ver nota sobre `test_auth.py` en Notas de sesión — preexistente, no bloquea T9).
-**Última sesión:** 2 de julio de 2026 — T9 CRUD de productos completado.
+**Tarea en progreso:** Ninguna — T10 completada.
+**Bloqueantes activos:** Ninguno (ver nota sobre `test_auth.py` en Notas de sesión — preexistente, no bloquea T10).
+**Última sesión:** 2 de julio de 2026 — T10 Cliente Cloudflare R2 y upload de PDFs completado.
 
 ---
 
 ## PRÓXIMA TAREA
 
-**T10 — Cliente Cloudflare R2 y upload de PDFs**
+**T11 — CRUD de prospectos con upload y activación**
 
-Referencia completa en `docs/PLAN.md § Sección 3 · T10`.
+Referencia completa en `docs/PLAN.md § Sección 3 · T11`.
 
 ---
 
@@ -37,7 +37,7 @@ Referencia completa en `docs/PLAN.md § Sección 3 · T10`.
 - [x] **T7** — Middleware de autorización por rol ✅ · 29 jun 2026
 - [x] **T8** — Servicio de auditoría (audit_log) ✅ · 29 jun 2026
 - [x] **T9** — CRUD de productos ✅ · 2 jul 2026
-- [ ] **T10** — Cliente Cloudflare R2 y upload de PDFs
+- [x] **T10** — Cliente Cloudflare R2 y upload de PDFs ✅ · 2 jul 2026
 - [ ] **T11** — CRUD de prospectos con upload y activación
 - [ ] **T12** — Resolución pública GTIN → prospectos
 - [ ] **T13** — Endpoint de audit_log
@@ -82,6 +82,7 @@ Referencia completa en `docs/PLAN.md § Sección 3 · T10`.
 - [x] **T7** — Middleware de autorización por rol ✅ · 29 jun 2026
 - [x] **T8** — Servicio de auditoría (audit_log) ✅ · 29 jun 2026
 - [x] **T9** — CRUD de productos ✅ · 2 jul 2026
+- [x] **T10** — Cliente Cloudflare R2 y upload de PDFs ✅ · 2 jul 2026
 
 ---
 
@@ -197,6 +198,16 @@ Referencia completa en `docs/PLAN.md § Sección 3 · T10`.
 **[T9 · 2 jul 2026]** `audit_log` es append-only también contra `DELETE`, no solo `UPDATE` (el trigger bloquea ambos). El teardown de `productos_seed` en los tests intentaba borrar filas de `audit_log` generadas por los TCs de auditoría y explotaba con "audit_log es inmutable". Fix: el teardown solo borra `productos`; las filas de auditoría quedan (esperado, coherente con la regla de negocio).
 
 **[T9 · 2 jul 2026]** [BLOQUEANTE] preexistente, no introducido por T9: `test_auth.py` tiene 2 TCs (`test_login_email_inexistente...`, `test_lockout_tras_cinco_intentos_fallidos`) que fallan con 422 en lugar de 401 al correr el suite completo contra la DB de test local (puerto 5433, container `vent3-db`). Confirmado con `git stash` que la falla existe también en `main` sin los cambios de T9 — es el mismo gotcha de event loop / DB que ya se documentó en T7+T8 (línea de arriba), simplemente se manifiesta distinto según el entorno de ejecución. No se tocó `test_auth.py` porque está fuera del alcance de T9. Suite completo al cierre: **55 passed, 2 failed (preexistentes)** — de los cuales 10/10 son los nuevos de T9.
+
+**[T10 · 2 jul 2026]** DESVÍO de estructura documentado: el `session_prompt` de T10 pedía un paquete nuevo `src/storage/` (`r2_client.py` + `storage_service.py`). Se descartó esa opción a favor de PLAN.md §T10, que especifica `apps/api/src/services/storage.py` — consistente con el patrón `router → service → repository` ya establecido (`services/auditoria.py`, `services/productos.py`). El cliente boto3 quedó en `src/core/r2_client.py` (junto a `config.py`, `security.py`), no en un paquete `storage/` separado. Confirmado con el usuario antes de escribir código.
+
+**[T10 · 2 jul 2026]** GOTCHA evitado, no nuevo: el snippet del `session_prompt` usaba `settings.r2_account_id` en minúsculas. Los atributos de `Settings` son UPPERCASE (gotcha ya documentado en T2, línea arriba: `s.R2_ACCOUNT_ID`, no `s.r2_account_id`). Se usó la convención correcta desde el inicio en `r2_client.py` y `services/storage.py`.
+
+**[T10 · 2 jul 2026]** `asyncio.to_thread()` con boto3 (`put_object`, `generate_presigned_url`, `delete_object`) funcionó sin comportamiento inesperado. boto3 instalado desde T1, sin necesidad de ajustar versión.
+
+**[T10 · 2 jul 2026]** Verificación manual con R2 real (bucket `vent3-prospectos`) exitosa sin ajustes de credenciales ni `endpoint_url`: subida, URL pública (`pub-*.r2.dev`, HTTP 200, `Content-Type: application/pdf`), URL firmada (`ExpiresIn=300`) y eliminación funcionaron en el primer intento contra `apps/api/.env` real.
+
+**[T10 · 2 jul 2026]** Tests: `tests/test_storage.py` mockea `src.services.storage.r2` con `unittest.mock.patch` (no se llama a R2 real en CI). 6 criterios de done cubiertos con 10 TCs (parametrizados en `sanitizar_nombre_archivo`). Suite completo al cierre: **65 passed, 2 failed (preexistentes de T9/`test_auth.py`, sin cambios)** — de los cuales 10/10 son los nuevos de T10.
 
 ---
 > Actualizar este archivo al finalizar cada sesión. Formato sugerido para COMPLETADAS:
