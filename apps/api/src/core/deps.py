@@ -1,6 +1,9 @@
+import secrets
+
 from fastapi import Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.config import settings
 from src.core.db import get_db
 from src.core.security import COOKIE_NAME, decodificar_token
 from src.models.usuario import Usuario
@@ -37,3 +40,9 @@ async def require_admin(
     if current_user.rol != "admin":
         raise HTTPException(status_code=403, detail="Permisos insuficientes")
     return current_user
+
+
+async def require_internal_token(request: Request) -> None:
+    token = request.headers.get("X-Internal-Token")
+    if not token or not secrets.compare_digest(token, settings.INTERNAL_API_TOKEN):
+        raise HTTPException(status_code=403, detail="Token interno inválido")
