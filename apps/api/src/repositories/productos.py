@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 
 from src.models.producto import Producto
+from src.models.producto_principio import ProductoPrincipio
 from src.repositories.base import BaseRepository
 
 
@@ -57,7 +58,7 @@ class ProductosRepository(BaseRepository[Producto]):
             select(Producto)
             .where(Producto.id == id)
             .options(
-                selectinload(Producto.principios),
+                selectinload(Producto.principios).selectinload(ProductoPrincipio.principio),
                 selectinload(Producto.gtin_registros),
                 selectinload(Producto.prospectos_asociados),
                 joinedload(Producto.materiales_packaging),
