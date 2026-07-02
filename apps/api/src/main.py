@@ -10,6 +10,7 @@ from sqlalchemy import text
 from src.core.config import settings
 from src.routers.auth import router as auth_router
 from src.routers.productos import router as productos_router
+from src.routers.prospectos import router as prospectos_router
 from src.schemas import (
     AuditLogResponse,
     GtinRegistroResponse,
@@ -102,6 +103,7 @@ app.openapi = _custom_openapi  # type: ignore[method-assign]
 
 app.include_router(auth_router)
 app.include_router(productos_router)
+app.include_router(prospectos_router)
 
 
 @app.get("/health", response_model=HealthResponse)
