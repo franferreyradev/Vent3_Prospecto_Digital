@@ -7,17 +7,17 @@
 
 ## ESTADO ACTUAL
 
-**Tarea en progreso:** Ninguna — T12 completada.
-**Bloqueantes activos:** Ninguno (ver nota sobre `test_auth.py` en Notas de sesión — preexistente, no bloquea T12).
-**Última sesión:** 2 de julio de 2026 — T12 resolución pública GTIN → prospectos completado.
+**Tarea en progreso:** Ninguna — T13 completada.
+**Bloqueantes activos:** Ninguno (ver nota sobre `test_auth.py` en Notas de sesión — preexistente, no bloquea T13).
+**Última sesión:** 2 de julio de 2026 — T13 endpoint de audit_log completado.
 
 ---
 
 ## PRÓXIMA TAREA
 
-**T13 — Endpoint de audit_log**
+**T14 — Script de migración desde Excel**
 
-Referencia completa en `docs/PLAN.md § Sección 3 · T13`.
+Referencia completa en `docs/PLAN.md § Sección 3 · T14`.
 
 ---
 
@@ -40,7 +40,7 @@ Referencia completa en `docs/PLAN.md § Sección 3 · T13`.
 - [x] **T10** — Cliente Cloudflare R2 y upload de PDFs ✅ · 2 jul 2026
 - [x] **T11** — CRUD de prospectos con upload y activación ✅ · 2 jul 2026
 - [x] **T12** — Resolución pública GTIN → prospectos ✅ · 2 jul 2026
-- [ ] **T13** — Endpoint de audit_log
+- [x] **T13** — Endpoint de audit_log ✅ · 2 jul 2026
 - [ ] **T14** — Script de migración desde Excel
 
 ### FASE 2 — Frontend público
@@ -85,6 +85,7 @@ Referencia completa en `docs/PLAN.md § Sección 3 · T13`.
 - [x] **T10** — Cliente Cloudflare R2 y upload de PDFs ✅ · 2 jul 2026
 - [x] **T11** — CRUD de prospectos con upload y activación ✅ · 2 jul 2026
 - [x] **T12** — Resolución pública GTIN → prospectos ✅ · 2 jul 2026
+- [x] **T13** — Endpoint de audit_log ✅ · 2 jul 2026
 
 ---
 
@@ -232,6 +233,14 @@ Referencia completa en `docs/PLAN.md § Sección 3 · T13`.
 **[T12 · 2 jul 2026]** [BLOQUEANTE resuelto, NO es el gotcha de T11] Al correr los tests el usuario obtuvo "password authentication failed for user vent3" en los 8 TCs nuevos. Investigado con `docker exec` + `psql` directo: **no era el hash de password desactualizado de T11** (ese gotcha era sobre el admin seed). La causa real: `apps/api/.env` tenía `DATABASE_URL` apuntando a `localhost:5432`, pero `infra/docker-compose.yml` mapea `vent3-db` al puerto **5433** (`"5433:5432"`). El puerto 5432 de la máquina del usuario está ocupado por `alcosto-db`, un contenedor Postgres de otro proyecto sin relación con Vent3 — los tests se conectaban silenciosamente a la DB equivocada y fallaban con un error de auth que parecía de credenciales pero era de proyecto equivocado. Se corrigió el puerto en el `.env` del usuario (5432 → 5433) y los 8 TCs pasaron. Confirmar siempre host:puerto de `DATABASE_URL` contra `docker-compose.yml` antes de asumir que un "password authentication failed" es un problema de hash o de credenciales — puede ser simplemente el puerto equivocado en una máquina con múltiples proyectos Postgres locales.
 
 **[T12 · 2 jul 2026]** Suite completa al cierre: **81 passed, 2 failed** (los mismos 2 preexistentes de `test_auth.py` desde T9, sin cambios) — 73 + 8 nuevos = 81, sin regresiones.
+
+**[T13 · 2 jul 2026]** No se recrearon `models/audit_log.py`, `schemas/audit.py`, `schemas/base.py` ni `repositories/audit.py` — ya existían desde T5/T8 y `AuditRepository.get_filtrado()` ya traía todos los filtros y la paginación implementados y testeados a nivel unitario (`test_auditoria.py::test_get_filtrado_con_filtros_multiples`). Se agregaron solo `services/audit.py` (`AuditService.listar()`, passthrough puro sin lógica de negocio) y `routers/audit.py`. **`services/audit.py` (lectura, nuevo en T13) y `services/auditoria.py` (escritura, de T8) conviven sin confusión** — nombres parecidos a propósito porque ya existía ese precedente desde T8, pero responsabilidades separadas: uno escribe, el otro lee. No se tocó `auditoria.py` ni sus tests.
+
+**[T13 · 2 jul 2026]** GOTCHA nuevo en el seed de tests: `audit_log.usuario_id` tiene FK contra `usuarios`. El primer intento del fixture `audit_seed` usó un `usuario_id = uuid.uuid4()` random para no depender del admin seedeado — esto rompe la inserción con `ForeignKeyViolationError`. Como `AuditoriaService.registrar_cambio()` nunca propaga excepciones (diseño de T8, solo loguea con `logger.error()`), el error queda silencioso pero deja la sesión en estado `PendingRollbackError` para cualquier `commit()` posterior, que sí explota. Fix: el fixture ahora busca el `id` real del admin (`SELECT id FROM usuarios WHERE email = :email`) igual que hace `test_auditoria.py::admin_id`, y lo usa como `usuario_id` en el seed. Cualquier test futuro que llame a `AuditoriaService.registrar_cambio()` en un fixture debe usar un `usuario_id` que exista de verdad en la DB de test, no un UUID random.
+
+**[T13 · 2 jul 2026]** Relacionado con el gotcha anterior: para aislar los TCs de paginación/filtrado entre corridas paralelas o repetidas, usar `tabla_afectada` con sufijo único (`uuid.uuid4().hex[:8]`) como filtro de aislamiento — NO `usuario_id`, porque ese campo es compartido por todos los tests que auditan como el mismo admin. Filtrar solo por `usuario_id` en un test de paginación cuenta también filas de auditoría dejadas por otros tests (audit_log es append-only, nunca se borra), rompiendo el `total` esperado.
+
+**[T13 · 2 jul 2026]** Suite completa al cierre: **89 passed, 2 failed** (los mismos 2 preexistentes de `test_auth.py` desde T9, sin cambios) — 83 + 6 nuevos = 89, sin regresiones. Confirmado por el usuario en su entorno real (DB `vent3-db` puerto 5433).
 
 ---
 > Actualizar este archivo al finalizar cada sesión. Formato sugerido para COMPLETADAS:
