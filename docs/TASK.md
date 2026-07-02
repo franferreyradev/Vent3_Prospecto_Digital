@@ -7,17 +7,17 @@
 
 ## ESTADO ACTUAL
 
-**Tarea en progreso:** Ninguna — T11 completada.
-**Bloqueantes activos:** Ninguno (ver nota sobre `test_auth.py` en Notas de sesión — preexistente, no bloquea T11).
-**Última sesión:** 2 de julio de 2026 — T11 CRUD de prospectos con upload y activación completado.
+**Tarea en progreso:** Ninguna — T12 completada.
+**Bloqueantes activos:** Ninguno (ver nota sobre `test_auth.py` en Notas de sesión — preexistente, no bloquea T12).
+**Última sesión:** 2 de julio de 2026 — T12 resolución pública GTIN → prospectos completado.
 
 ---
 
 ## PRÓXIMA TAREA
 
-**T12 — Resolución pública GTIN → prospectos**
+**T13 — Endpoint de audit_log**
 
-Referencia completa en `docs/PLAN.md § Sección 3 · T12`.
+Referencia completa en `docs/PLAN.md § Sección 3 · T13`.
 
 ---
 
@@ -39,7 +39,7 @@ Referencia completa en `docs/PLAN.md § Sección 3 · T12`.
 - [x] **T9** — CRUD de productos ✅ · 2 jul 2026
 - [x] **T10** — Cliente Cloudflare R2 y upload de PDFs ✅ · 2 jul 2026
 - [x] **T11** — CRUD de prospectos con upload y activación ✅ · 2 jul 2026
-- [ ] **T12** — Resolución pública GTIN → prospectos
+- [x] **T12** — Resolución pública GTIN → prospectos ✅ · 2 jul 2026
 - [ ] **T13** — Endpoint de audit_log
 - [ ] **T14** — Script de migración desde Excel
 
@@ -84,6 +84,7 @@ Referencia completa en `docs/PLAN.md § Sección 3 · T12`.
 - [x] **T9** — CRUD de productos ✅ · 2 jul 2026
 - [x] **T10** — Cliente Cloudflare R2 y upload de PDFs ✅ · 2 jul 2026
 - [x] **T11** — CRUD de prospectos con upload y activación ✅ · 2 jul 2026
+- [x] **T12** — Resolución pública GTIN → prospectos ✅ · 2 jul 2026
 
 ---
 
@@ -219,6 +220,18 @@ Referencia completa en `docs/PLAN.md § Sección 3 · T12`.
 **[T11 · 2 jul 2026]** El sandbox del agente no tiene `DATABASE_URL`/`ADMIN_EMAIL`/`ADMIN_INITIAL_PASSWORD` exportadas ni acceso a los `.env*` (restricción de permisos). Los 8 TCs de `test_prospectos.py` colectaron bien ahí pero corrieron en skip. El usuario corrió la suite en su máquina (Docker `vent3-db`, puerto 5433) con las credenciales reales: **8/8 verdes en `test_prospectos.py`**. Suite completa al cierre: **73 passed, 2 failed (los mismos 2 preexistentes de `test_auth.py` desde T9, sin cambios)** — 65 + 8 nuevos = 73, sin regresiones.
 
 **[T11 · 2 jul 2026]** GOTCHA nuevo, importante para futuras sesiones que reseteen la DB de test: la migración `004_seed_admin_inicial.py` lee `ADMIN_EMAIL`/`ADMIN_INITIAL_PASSWORD` del **entorno vigente en el momento de correr `alembic upgrade head`**, no del `.env` actual, y usa `ON CONFLICT (email) DO NOTHING` — si después se cambia la password en `.env` sin volver a seedear desde cero, el hash en la DB queda desactualizado y el login falla con 401 aunque la password en `.env` sea "correcta". En esta sesión el hash de `admin@vent3.com.ar` en la DB de test local no coincidía con el valor actual de `ADMIN_INITIAL_PASSWORD` (`.env`); se corrigió con un `UPDATE usuarios SET password_hash = ...` directo contra la DB de test local (puerto 5433), regenerando el hash bcrypt a partir de la password real de `.env`. No se tocó ningún archivo de migración ni producción. Si esto vuelve a pasar: verificar `password_hash` vs `bcrypt.checkpw()` antes de asumir que el código de login está roto.
+
+**[T12 · 2 jul 2026]** No se recrearon `models/gtin_registro.py`, `schemas/resolver.py`, `schemas/gtin.py` ni `repositories/resolver.py` — ya existían desde T4/T5 y `ResolverRepository.resolver_gtin()` ya traía toda la lógica de negocio de los 4 casos (no_encontrado/inactivo/sin_prospecto/con_prospecto) testeada a nivel unitario desde T4 (`test_repositorios.py` TC4). Se agregaron solo `services/resolver.py` (`ResolverService.resolver()`, arma el `ResolverResponse` a partir del dict del repo), `routers/internal.py` y `require_internal_token()` en `deps.py`.
+
+**[T12 · 2 jul 2026]** El endpoint SIEMPRE responde HTTP 200 con el error semántico en el body (`{"error": "no_encontrado"}` etc.) — nunca 404. Los únicos códigos de error HTTP reales son 403 (token ausente/inválido, vía `secrets.compare_digest()` constant-time) y 422 (formato de GTIN inválido, vía `Annotated[str, Path(pattern=r"^\d{14}$")]`, sin lógica manual). Este contrato es el que va a consumir el SSR de Next.js en T18.
+
+**[T12 · 2 jul 2026]** Para el escenario de "dos prospectos vigentes" (TC8) se reusó el flujo real de T11 (`auth_client` con `POST /api/prospectos` + `PATCH /activar`, dos veces con `tipo_audiencia` distinto) en lugar de insertar filas por SQL directo — así el test también ejerce la integración real entre T11 y T12, no solo el estado final de la tabla `producto_prospectos`.
+
+**[T12 · 2 jul 2026]** `secrets.compare_digest(token_recibido, settings.INTERNAL_API_TOKEN)` funcionó sin problemas de tipos (ambos son `str`, no hace falta encodear a bytes).
+
+**[T12 · 2 jul 2026]** [BLOQUEANTE resuelto, NO es el gotcha de T11] Al correr los tests el usuario obtuvo "password authentication failed for user vent3" en los 8 TCs nuevos. Investigado con `docker exec` + `psql` directo: **no era el hash de password desactualizado de T11** (ese gotcha era sobre el admin seed). La causa real: `apps/api/.env` tenía `DATABASE_URL` apuntando a `localhost:5432`, pero `infra/docker-compose.yml` mapea `vent3-db` al puerto **5433** (`"5433:5432"`). El puerto 5432 de la máquina del usuario está ocupado por `alcosto-db`, un contenedor Postgres de otro proyecto sin relación con Vent3 — los tests se conectaban silenciosamente a la DB equivocada y fallaban con un error de auth que parecía de credenciales pero era de proyecto equivocado. Se corrigió el puerto en el `.env` del usuario (5432 → 5433) y los 8 TCs pasaron. Confirmar siempre host:puerto de `DATABASE_URL` contra `docker-compose.yml` antes de asumir que un "password authentication failed" es un problema de hash o de credenciales — puede ser simplemente el puerto equivocado en una máquina con múltiples proyectos Postgres locales.
+
+**[T12 · 2 jul 2026]** Suite completa al cierre: **81 passed, 2 failed** (los mismos 2 preexistentes de `test_auth.py` desde T9, sin cambios) — 73 + 8 nuevos = 81, sin regresiones.
 
 ---
 > Actualizar este archivo al finalizar cada sesión. Formato sugerido para COMPLETADAS:
