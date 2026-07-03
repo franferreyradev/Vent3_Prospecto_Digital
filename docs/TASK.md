@@ -7,17 +7,17 @@
 
 ## ESTADO ACTUAL
 
-**Tarea en progreso:** Ninguna — T17 completada.
-**Bloqueantes activos:** Ninguno (ver nota sobre `test_auth.py` en Notas de sesión — preexistente, no bloquea T17). Ver también nota T17 sobre gap de endpoints de prospectos vs PLAN.md.
-**Última sesión:** 3 de julio de 2026 — T17 cliente HTTP del frontend completado.
+**Tarea en progreso:** Ninguna — T18 completada.
+**Bloqueantes activos:** Ninguno (ver nota sobre `test_auth.py` en Notas de sesión — preexistente, no bloquea T18). Ver también nota T17 sobre gap de endpoints de prospectos vs PLAN.md (resuelto, ampliado scope de T21). Nota nueva T18: DB de desarrollo local no tenía GTINs vigentes ni prospectos — se sembraron datos de prueba, ver Notas de sesión.
+**Última sesión:** 3 de julio de 2026 — T18 página pública de prospecto (resolver del QR) completado.
 
 ---
 
 ## PRÓXIMA TAREA
 
-**T18 — Página pública de prospecto (resolver del QR)**
+**T19 — Login del admin**
 
-Referencia completa en `docs/PLAN.md § Sección 3 · T18`.
+Referencia completa en `docs/PLAN.md § Sección 3 · T19`.
 
 ---
 
@@ -48,7 +48,7 @@ Referencia completa en `docs/PLAN.md § Sección 3 · T18`.
 - [x] **T15** — Setup Next.js + Tailwind + design tokens ✅ · 3 jul 2026
 - [x] **T16** — Componentes UI base ✅ · 3 jul 2026
 - [x] **T17** — Cliente HTTP del frontend ✅ · 3 jul 2026
-- [ ] **T18** — Página pública de prospecto (resolver del QR)
+- [x] **T18** — Página pública de prospecto (resolver del QR) ✅ · 3 jul 2026
 
 ### FASE 3 — Panel admin
 
@@ -90,6 +90,7 @@ Referencia completa en `docs/PLAN.md § Sección 3 · T18`.
 - [x] **T15** — Setup Next.js + Tailwind + design tokens ✅ · 3 jul 2026
 - [x] **T16** — Componentes UI base ✅ · 3 jul 2026
 - [x] **T17** — Cliente HTTP del frontend ✅ · 3 jul 2026
+- [x] **T18** — Página pública de prospecto (resolver del QR) ✅ · 3 jul 2026
 
 ---
 
@@ -293,6 +294,24 @@ Referencia completa en `docs/PLAN.md § Sección 3 · T18`.
 **[T17 · 3 jul 2026]** Suite de backend: T17 no tocó `apps/api`. En el shell del agente: `26 passed, 71 skipped` (mismo patrón sin `TEST_DATABASE_URL` exportada, esperado desde T14/T15). **Pendiente de confirmación del usuario en su máquina real:** se espera 95/97 verdes, mismos 2 preexistentes de `test_auth.py` desde T9, sin regresiones — T17 es una tarea 100% de frontend.
 
 **[T17 · 3 jul 2026] RESUELTO — gap de PLAN.md, no de T11.** El gap de `GET /api/prospectos` y `GET /api/prospectos/{id}/download-url` (nota de arriba) se investigó a fondo: no es una tarea a medio hacer, es que `Sección 3` (referencia completa de la API) y `Sección 4` (orden de implementación) de PLAN.md estaban desincronizadas — T11 se scopeó explícitamente solo a upload+activar (confirmado releyendo su descripción original), y ninguna otra tarea tenía asignados esos dos endpoints. Decisión tomada con el usuario: en lugar de insertar una tarea backend dedicada (que obligaría a renumerar T22-T28 en cascada por un cambio chico), se amplió el scope de **T21** en `docs/PLAN.md` para que incluya estos 2 endpoints de backend — T21 es su único consumidor real, mismo patrón "agregar solo lo que la tarea consumidora necesita" ya establecido desde T9. Ver `PLAN.md §T21` para el detalle completo, incluido el gotcha de que `Prospecto.url_archivo` guarda la URL pública (no el key de R2) — hay que derivar el key con `removeprefix()`, sin migración nueva.
+
+**[T18 · 3 jul 2026]** No se recrearon `apps/web/components/ui/PDFViewer.tsx` ni `SelectorAudiencia.tsx` pese a que `docs/PLAN.md §T18` los lista como "archivos afectados" en `components/prospecto/` — ya existían y son reusables desde T16 en `components/ui/`. Los únicos archivos nuevos genuinos: `app/01/[gtin]/page.tsx` (Server Component SSR), `components/prospecto/LandingSelector.tsx` (client island que mapea `tipo_audiencia` de dominio a los valores de UI de `SelectorAudiencia`) y `components/prospecto/ErrorPage.tsx`.
+
+**[T18 · 3 jul 2026]** `page.tsx` usa `tipo_landing`/`error` de `ResolverResponse` tal cual vienen del backend (computed_fields de T5/T12) — no se reimplementó la lógica de "¿es único, selector o error?" contando el array `prospectos` a mano. El único chequeo manual en el frontend es la validación de formato del GTIN (`/^\d{14}$/`) antes de llamar al backend, para no dejar pasar un 422 crudo de FastAPI.
+
+**[T18 · 3 jul 2026]** `INTERNAL_API_TOKEN` SÍ estaba disponible en el entorno del agente esta sesión (a diferencia de sesiones anteriores con restricciones sobre archivos `.env*`) — se pudo leer `apps/web/.env.local` y `apps/api/.env` y confirmar que los valores de `INTERNAL_API_TOKEN` coinciden entre ambos. No hizo falta pedirle al usuario que lo agregue manualmente.
+
+**[T18 · 3 jul 2026]** [BLOQUEANTE resuelto en la sesión] La DB de desarrollo local (`vent3_db`, puerto 5433) no tenía ningún GTIN con `es_vigente=true` en `gtin_registro` (las 167 filas migradas en T14 quedaron todas con `es_vigente=false`) y la tabla `prospectos` estaba completamente vacía (0 filas) — no había ningún dato real para ejercer los escenarios (a) único y (c) selector del criterio de done. Con aprobación explícita del usuario, se sembraron datos de prueba directo por SQL en la DB local (no productiva): GTIN `02000000001340` (PARACETAMOL VENT 3, activo, 1 prospecto `tipo_audiencia='unico'`) para el caso único; GTIN `02000000000572` (IBUPROFENO VENT 3, activo, 2 prospectos `publico_general`/`profesional_salud`) para el caso selector; GTIN `02000000001517` (RANITIDINA 150 VENT 3, `estado='inactivo'`) para el caso de error. Estos 3 GTIN y sus datos asociados quedan en la DB local del usuario — no se revirtieron. Si una futura sesión necesita una DB de desarrollo limpia, tenerlo en cuenta.
+
+**[T18 · 3 jul 2026]** Verificación SSR real confirmada con `curl` sobre los 3 GTIN sembrados: el HTML de respuesta ya trae la URL del PDF embebida en el `<iframe src>` (caso único) o los dos botones del selector (caso selector) o el mensaje de `ErrorPage` (casos error/inactivo) — no hay loading state que se resuelva client-side. `npm run build` además marca la ruta `/01/[gtin]` como `ƒ (Dynamic, server-rendered on demand)`, confirmando que no quedó pre-renderizada como estática.
+
+**[T18 · 3 jul 2026]** Verificación con Playwright headless (mismo patrón que T16/T17) sobre el GTIN selector (`02000000000572`): click en "Soy paciente" muestra el PDF `dummy.pdf`, click en "Soy profesional de salud" (tras reload) muestra `dummy2.pdf`, y en ambos casos se confirmó **cero requests de red nuevos hacia `localhost:8000`** tras el click — la elección de audiencia es 100% client-side, ambos PDFs ya vinieron resueltos en la respuesta SSR inicial, sin segundo round-trip al backend.
+
+**[T18 · 3 jul 2026]** R6 verificado: se buscó el valor real de `INTERNAL_API_TOKEN` con `rg` sobre `.next/static/` tras `npm run build` — no aparece en ningún chunk servido al navegador. El header `X-Internal-Token` solo se arma en `resolverGtin()` dentro de `page.tsx`, código que corre exclusivamente server-side.
+
+**[T18 · 3 jul 2026]** [PENDIENTE — no reportar como 100% cerrado] El criterio de done (d) sobre verificación en Chrome Android / Safari iOS real (BrowserStack o dispositivos físicos) queda fuera del alcance de este agente — solo se verificó Chromium headless vía Playwright. Pendiente de QA manual del usuario antes de ir a producción.
+
+**[T18 · 3 jul 2026]** Suite de backend: T18 no tocó `apps/api`. En el shell del agente: `26 passed, 71 skipped` (mismo patrón sin `TEST_DATABASE_URL` exportada de sesiones anteriores). **Pendiente de confirmación del usuario en su máquina real:** se espera 95/97 verdes, mismos 2 preexistentes de `test_auth.py` desde T9, sin regresiones — T18 es una tarea 100% de frontend.
 
 ---
 > Actualizar este archivo al finalizar cada sesión. Formato sugerido para COMPLETADAS:
