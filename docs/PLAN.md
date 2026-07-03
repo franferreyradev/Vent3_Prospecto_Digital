@@ -478,8 +478,15 @@ CREATE EXTENSION IF NOT EXISTS unaccent;  -- Para normalización de búsquedas
 #### T21 — Detalle de producto y gestión de prospectos
 
 - **Descripción:** ruta `app/admin/productos/[id]/page.tsx`. Muestra ficha completa del producto, listado de prospectos asociados (vigentes y reemplazados), botón para subir nuevo PDF, botón para activar/desactivar producto.
-- **Archivos afectados:** `apps/web/app/admin/productos/[id]/page.tsx`, `apps/web/components/admin/UploadProspecto.tsx`.
-- **Criterio de done:** admin puede subir un PDF nuevo desde la UI, completar metadata (código, versión, tipo de audiencia), activarlo, y ver el reemplazo automático del anterior.
+
+  **Backend pendiente incluido en esta tarea (gap detectado en T17):** `Sección 3` documenta `GET /api/prospectos` (listado con filtros `estado_vigencia`, `producto_id`) y `GET /api/prospectos/{id}/download-url`, pero ninguna tarea de esta sección los tenía asignados — T11 se scopeó explícitamente solo a `POST /api/prospectos` y `PATCH /api/prospectos/{id}/activar`. T21 es el primer y único consumidor real, así que implementarlos acá evita código de backend sin consumidor. Reusar:
+  - `ProspectosRepository` (`apps/api/src/repositories/prospectos.py`): agregar un método de listado filtrado (`estado_vigencia`, `producto_id` opcionales) — `get_todos_por_producto()` ya existente no alcanza, devuelve filas de `ProductoProspecto` (tabla puente), no `Prospecto` completos.
+  - `StorageService.generar_url_firmada(key)` (T10, ya implementado) para el download-url.
+  - **Gotcha a tener en cuenta:** `Prospecto.url_archivo` guarda la URL pública (`{R2_PUBLIC_URL}/{key}`), no el key de R2 crudo. Derivar el key con `url_archivo.removeprefix(f"{settings.R2_PUBLIC_URL}/")` antes de llamar a `generar_url_firmada` — no hace falta migración ni columna nueva.
+  - Tras implementarlos, regenerar `packages/contracts/src/api.ts` (`npm run contracts:generate`, no se commitea — gitignored desde T5) y agregar `listarProspectos()` / `obtenerUrlDescargaProspecto()` a `apps/web/lib/api-client.ts` (T17), siguiendo el mismo patrón que las funciones de `productos`/`audit-log` ya existentes ahí.
+
+- **Archivos afectados:** `apps/api/src/routers/prospectos.py`, `apps/api/src/services/prospectos.py`, `apps/api/src/repositories/prospectos.py`, `apps/web/lib/api-client.ts`, `apps/web/app/admin/productos/[id]/page.tsx`, `apps/web/components/admin/UploadProspecto.tsx`.
+- **Criterio de done:** admin puede subir un PDF nuevo desde la UI, completar metadata (código, versión, tipo de audiencia), activarlo, y ver el reemplazo automático del anterior. Además: (e) `GET /api/prospectos?producto_id=X` lista vigentes y reemplazados de ese producto; (f) `GET /api/prospectos/{id}/download-url` retorna una URL firmada válida y expirable.
 - **Depende de:** T20.
 
 #### T22 — Vista de audit log

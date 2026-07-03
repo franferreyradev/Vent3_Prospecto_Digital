@@ -292,6 +292,8 @@ Referencia completa en `docs/PLAN.md § Sección 3 · T18`.
 
 **[T17 · 3 jul 2026]** Suite de backend: T17 no tocó `apps/api`. En el shell del agente: `26 passed, 71 skipped` (mismo patrón sin `TEST_DATABASE_URL` exportada, esperado desde T14/T15). **Pendiente de confirmación del usuario en su máquina real:** se espera 95/97 verdes, mismos 2 preexistentes de `test_auth.py` desde T9, sin regresiones — T17 es una tarea 100% de frontend.
 
+**[T17 · 3 jul 2026] RESUELTO — gap de PLAN.md, no de T11.** El gap de `GET /api/prospectos` y `GET /api/prospectos/{id}/download-url` (nota de arriba) se investigó a fondo: no es una tarea a medio hacer, es que `Sección 3` (referencia completa de la API) y `Sección 4` (orden de implementación) de PLAN.md estaban desincronizadas — T11 se scopeó explícitamente solo a upload+activar (confirmado releyendo su descripción original), y ninguna otra tarea tenía asignados esos dos endpoints. Decisión tomada con el usuario: en lugar de insertar una tarea backend dedicada (que obligaría a renumerar T22-T28 en cascada por un cambio chico), se amplió el scope de **T21** en `docs/PLAN.md` para que incluya estos 2 endpoints de backend — T21 es su único consumidor real, mismo patrón "agregar solo lo que la tarea consumidora necesita" ya establecido desde T9. Ver `PLAN.md §T21` para el detalle completo, incluido el gotcha de que `Prospecto.url_archivo` guarda la URL pública (no el key de R2) — hay que derivar el key con `removeprefix()`, sin migración nueva.
+
 ---
 > Actualizar este archivo al finalizar cada sesión. Formato sugerido para COMPLETADAS:
 > `- [x] **T1** — Setup del monorepo ✅ · 25 jun 2026`
