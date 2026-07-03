@@ -7,17 +7,17 @@
 
 ## ESTADO ACTUAL
 
-**Tarea en progreso:** Ninguna — T13 completada.
-**Bloqueantes activos:** Ninguno (ver nota sobre `test_auth.py` en Notas de sesión — preexistente, no bloquea T13).
-**Última sesión:** 2 de julio de 2026 — T13 endpoint de audit_log completado.
+**Tarea en progreso:** Ninguna — T14 completada.
+**Bloqueantes activos:** Ninguno (ver nota sobre `test_auth.py` en Notas de sesión — preexistente, no bloquea T14).
+**Última sesión:** 3 de julio de 2026 — T14 script de migración desde Excel completado.
 
 ---
 
 ## PRÓXIMA TAREA
 
-**T14 — Script de migración desde Excel**
+**T15 — Setup Next.js + Tailwind + design tokens**
 
-Referencia completa en `docs/PLAN.md § Sección 3 · T14`.
+Referencia completa en `docs/PLAN.md § Sección 3 · T15`.
 
 ---
 
@@ -41,7 +41,7 @@ Referencia completa en `docs/PLAN.md § Sección 3 · T14`.
 - [x] **T11** — CRUD de prospectos con upload y activación ✅ · 2 jul 2026
 - [x] **T12** — Resolución pública GTIN → prospectos ✅ · 2 jul 2026
 - [x] **T13** — Endpoint de audit_log ✅ · 2 jul 2026
-- [ ] **T14** — Script de migración desde Excel
+- [x] **T14** — Script de migración desde Excel ✅ · 3 jul 2026
 
 ### FASE 2 — Frontend público
 
@@ -86,6 +86,7 @@ Referencia completa en `docs/PLAN.md § Sección 3 · T14`.
 - [x] **T11** — CRUD de prospectos con upload y activación ✅ · 2 jul 2026
 - [x] **T12** — Resolución pública GTIN → prospectos ✅ · 2 jul 2026
 - [x] **T13** — Endpoint de audit_log ✅ · 2 jul 2026
+- [x] **T14** — Script de migración desde Excel ✅ · 3 jul 2026
 
 ---
 
@@ -241,6 +242,18 @@ Referencia completa en `docs/PLAN.md § Sección 3 · T14`.
 **[T13 · 2 jul 2026]** Relacionado con el gotcha anterior: para aislar los TCs de paginación/filtrado entre corridas paralelas o repetidas, usar `tabla_afectada` con sufijo único (`uuid.uuid4().hex[:8]`) como filtro de aislamiento — NO `usuario_id`, porque ese campo es compartido por todos los tests que auditan como el mismo admin. Filtrar solo por `usuario_id` en un test de paginación cuenta también filas de auditoría dejadas por otros tests (audit_log es append-only, nunca se borra), rompiendo el `total` esperado.
 
 **[T13 · 2 jul 2026]** Suite completa al cierre: **89 passed, 2 failed** (los mismos 2 preexistentes de `test_auth.py` desde T9, sin cambios) — 83 + 6 nuevos = 89, sin regresiones. Confirmado por el usuario en su entorno real (DB `vent3-db` puerto 5433).
+
+**[T14 · 3 jul 2026]** El Excel real (`BD_productos_v2.xlsx`, movido desde la raíz del repo con espacios en el nombre) se verificó fila por fila antes de escribir la lógica: 204 filas de datos, 171 con `Código interno` propio, 33 huérfanas (31 de continuación multi-droga, 2 de "frasco secundario" — patrón confirmado en P-04/P-05, ambas con un segundo código `P-44`). 4 filas en `Presentación="en proceso"` (todas `ESTADO=I`) se ignoran por decisión ya tomada con el usuario, dejando **167 productos migrados** (no 168, que era la estimación vieja de PLAN.md). Breakdown real: 95 farmacia-activo, 57 farmacia-inactivo, 12 licitación-activo, 3 licitación-inactivo (15 licitación total, incluyendo la fila con el typo real `"licitaciín x 60"`), 5 productos línea `MU-` (oncológicos, canal='farmacia' por default, sin lógica especial). 34 principios activos distintos en el catálogo final — el `.strip()` aplicado antes de buscar/crear evitó que "Aspirina " y "Aspirina" (o "Docetaxel " con espacio final) generaran registros duplicados, tal como advertía el gotcha de T4.
+
+**[T14 · 3 jul 2026]** `openpyxl` no estaba en las dependencias de `apps/api/pyproject.toml` — se agregó con `uv add openpyxl` (queda declarado en `pyproject.toml` + `uv.lock`).
+
+**[T14 · 3 jul 2026]** GOTCHA nuevo — ejecutar el script con `uv run python scripts/migrar_excel.py` (tal cual lo describe PLAN.md) falla con `ModuleNotFoundError: No module named 'src'` si no se ajusta `sys.path`, porque al correr un archivo directamente (no con `-m`) Python solo agrega el directorio del script (`scripts/`) a `sys.path`, no `apps/api/` (el padre, donde vive `src/`). Se agregó un bloque al inicio de `migrar_excel.py` que inserta `Path(__file__).resolve().parent.parent` en `sys.path` cuando se ejecuta como `__main__` sin paquete — así funciona tanto `uv run python scripts/migrar_excel.py` como `uv run python -m scripts.migrar_excel`.
+
+**[T14 · 3 jul 2026]** GOTCHA nuevo, importante para sesiones futuras que corran el suite completo: `tests/conftest.py` usa `os.environ.setdefault("ADMIN_EMAIL", "admin@test.com")` (y lo mismo para `ADMIN_INITIAL_PASSWORD`). Como `setdefault` solo actúa si la variable **no está ya exportada en el shell**, si se corre `pytest` sin haber exportado antes las credenciales reales del `.env`, esos defaults dummy pisan silenciosamente los valores reales — y como pydantic-settings prioriza variables de entorno del shell por sobre el archivo `.env`, el login contra el admin real (`admin@vent3.com.ar`) falla siempre con 401, sin que tenga nada que ver con el hash de la contraseña (a diferencia del gotcha de T11, que sí era sobre un hash desactualizado). Solución: `set -a; source .env; set +a` antes de correr pytest, para que las variables reales ya estén en el entorno cuando `conftest.py` intente aplicar sus defaults. Confirmado que esto reproduce igual en `main` sin ningún cambio de T14 (verificado con `git stash`) — no es una regresión de esta tarea, es un paso de entorno que hay que repetir cada sesión si el shell no las tiene ya exportadas.
+
+**[T14 · 3 jul 2026]** El script `migrar_excel.py` se corrió dos veces seguidas contra la DB de desarrollo real (`vent3-db`, puerto 5433) con los 167 productos reales: primera corrida → 167 creados / 0 salteados; segunda corrida inmediata → 0 creados / 167 salteados, sin errores — idempotencia confirmada end-to-end, no solo contra el fixture reducido de los tests.
+
+**[T14 · 3 jul 2026]** Suite completo al cierre: **97 tests, 95 passed, 2 failed** (los mismos 2 preexistentes de `test_auth.py` desde T9, sin cambios — confirmado que no son nuevos) — 89 + 8 nuevos de `test_migracion_excel.py` = 97, sin regresiones. Confirmado por el usuario en su entorno real.
 
 ---
 > Actualizar este archivo al finalizar cada sesión. Formato sugerido para COMPLETADAS:
