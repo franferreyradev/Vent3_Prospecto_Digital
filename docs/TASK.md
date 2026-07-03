@@ -7,17 +7,17 @@
 
 ## ESTADO ACTUAL
 
-**Tarea en progreso:** Ninguna — T15 completada.
-**Bloqueantes activos:** Ninguno (ver nota sobre `test_auth.py` en Notas de sesión — preexistente, no bloquea T15).
-**Última sesión:** 3 de julio de 2026 — T15 setup Next.js + Tailwind + design tokens completado.
+**Tarea en progreso:** Ninguna — T16 completada.
+**Bloqueantes activos:** Ninguno (ver nota sobre `test_auth.py` en Notas de sesión — preexistente, no bloquea T16).
+**Última sesión:** 3 de julio de 2026 — T16 componentes UI base completado.
 
 ---
 
 ## PRÓXIMA TAREA
 
-**T16 — Componentes UI base**
+**T17 — Cliente HTTP del frontend**
 
-Referencia completa en `docs/PLAN.md § Sección 3 · T16`.
+Referencia completa en `docs/PLAN.md § Sección 3 · T17`.
 
 ---
 
@@ -46,7 +46,7 @@ Referencia completa en `docs/PLAN.md § Sección 3 · T16`.
 ### FASE 2 — Frontend público
 
 - [x] **T15** — Setup Next.js + Tailwind + design tokens ✅ · 3 jul 2026
-- [ ] **T16** — Componentes UI base
+- [x] **T16** — Componentes UI base ✅ · 3 jul 2026
 - [ ] **T17** — Cliente HTTP del frontend
 - [ ] **T18** — Página pública de prospecto (resolver del QR)
 
@@ -88,6 +88,7 @@ Referencia completa en `docs/PLAN.md § Sección 3 · T16`.
 - [x] **T13** — Endpoint de audit_log ✅ · 2 jul 2026
 - [x] **T14** — Script de migración desde Excel ✅ · 3 jul 2026
 - [x] **T15** — Setup Next.js + Tailwind + design tokens ✅ · 3 jul 2026
+- [x] **T16** — Componentes UI base ✅ · 3 jul 2026
 
 ---
 
@@ -263,6 +264,16 @@ Referencia completa en `docs/PLAN.md § Sección 3 · T16`.
 **[T15 · 3 jul 2026]** Verificación visual: se levantó `npm run dev --workspace=apps/web` y se confirmó por `curl` que el HTML de `/` incluye las 11 clases `bg-vent3-*` y que el CSS generado (`/_next/static/css/app/layout.css`) compila los colores reales (ej. `.bg-vent3-primary { background-color: rgb(11 83 148 ...) }`) y la regla `body { background-color: #fff; font-family: Inter...; color: #1a1a1a; }` del `@layer base`, sin clases explícitas por página. `npm run build` (producción) completó sin errores (`✓ Compiled successfully`, 4 páginas estáticas generadas). Nota: `tsconfig.base.json` ya tiene `strict: true` — el mensaje genérico de Next.js sobre "Strict-mode is set to false by default" durante el primer `dev` es informativo y no aplica, no se tocó `tsconfig.json`.
 
 **[T15 · 3 jul 2026]** [BLOQUEANTE resuelto por el usuario] El agente no pudo correr el suite completo de backend contra la DB real en su propio shell: no tenía las variables de `apps/api/.env` exportadas (mismo gotcha ya documentado en T14 — `conftest.py` usa `setdefault` con credenciales dummy que pisan las reales si no se hace `set -a; source .env; set +a` antes), y a diferencia de T14 no pudo aplicar el fix porque tiene prohibido leer/sourcear archivos `.env*` por restricción de permisos (`source .env`/`rg .env` denegados explícitamente). Resultado en el shell del agente: `26 passed, 71 skipped`. El usuario corrió el suite completo en su propia máquina con las credenciales cargadas: **95/97 verdes, los mismos 2 preexistentes de `test_auth.py` desde T9** — confirmado sin regresiones. T15 no tocó ningún archivo de `apps/api`.
+
+**[T16 · 3 jul 2026]** Los 8 componentes de PLAN.md §5B creados en `apps/web/components/ui/`, con las props exactas de la tabla (sin variantes inventadas). Decisión Server vs Client, siguiendo la regla de CLAUDE.md "servidor por default": `Badge` es el único puramente presentacional sin ningún handler ni hook → Server Component. `Input` y `Select` requieren `'use client'` por `useId()` (Input) y por recibir `onChange` de función (Select). `Table` terminó necesitando `'use client'` también, aunque el criterio original decía "solo si `onRowClick` dispara interactividad directa": cualquier `<tr onClick={...}>` requiere que el árbol JSX donde se define el handler esté en un Client Component — no alcanza con que el padre sea cliente y Table sea servidor, porque el propio JSX de Table define el atributo `onClick` sobre un elemento nativo. `SelectorAudiencia` y `Toast` son cliente por handler de función y por `useState`/`useEffect` respectivamente. `PDFViewer` quedó como Server Component (no tiene estado propio ni handlers — el único evento, el link de descarga, es HTML nativo `<a download>`).
+
+**[T16 · 3 jul 2026]** Patrón de client wrapper: `app/dev/components/page.tsx` es Server Component y renderiza directo `Badge` y `PDFViewer` (ambos servidor). El resto de la interactividad (Button con contador de clicks, Input/Select controlados, Table con selección de fila, SelectorAudiencia, los 3 Toast) vive en `components/dev/InteractiveDemo.tsx`, un único Client Component importado una vez desde la página — patrón estándar de Next.js App Router "server page + client island", evitando forzar `'use client'` en toda la página.
+
+**[T16 · 3 jul 2026]** Verificación real en navegador (no solo compilación): se instaló Playwright (`npx playwright install chromium`, sin `--with-deps` porque `sudo` pide contraseña en este entorno — sin problema, no hacían falta las deps de sistema para Chromium headless) y se navegó `http://localhost:3000/dev/components` con un script de verificación. Confirmado con capturas y aserciones: los 8 componentes renderizan con sus variantes, cero errores de consola, y la interactividad mínima del criterio de done (e) — click en Button incrementa un contador (0→2), tipear en Input actualiza el eco en pantalla, cambiar el Select actualiza el valor mostrado, click en una fila de Table resalta la selección (Amoxicilina 500mg), click en SelectorAudiencia dispara `onSelect('profesional')`, y los 3 Toast hacen auto-dismiss (confirmado que a los 4.5s el de `duration=4000` ya desapareció, quedando 2 de los 3 visibles). El PDFViewer con URL placeholder pública queda con el iframe en blanco en este entorno — esperado y documentado en el propio componente, no es un bug.
+
+**[T16 · 3 jul 2026]** `npm run build` (producción) completó sin errores: 3 rutas generadas como estático (`/`, `/_not-found`, `/dev/components`), sin warnings de TypeScript ni Tailwind. Verificado con `rg` que ningún archivo de `components/ui/` usa clases de paleta Tailwind por defecto (`bg-blue-*`, `text-red-*`, etc.) — todos los colores vienen de tokens `vent3-*`.
+
+**[T16 · 3 jul 2026]** Suite de backend: T16 no tocó `apps/api`. Confirmado por el usuario: **95/97 verdes, mismos 2 preexistentes de `test_auth.py` desde T9** — sin regresiones.
 
 ---
 > Actualizar este archivo al finalizar cada sesión. Formato sugerido para COMPLETADAS:
