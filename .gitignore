@@ -24,6 +24,7 @@ uv.lock
 dist/
 build/
 out/
+next-env.d.ts
 
 # Cache de herramientas
 .pytest_cache/
