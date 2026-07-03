@@ -7,17 +7,17 @@
 
 ## ESTADO ACTUAL
 
-**Tarea en progreso:** Ninguna — T16 completada.
-**Bloqueantes activos:** Ninguno (ver nota sobre `test_auth.py` en Notas de sesión — preexistente, no bloquea T16).
-**Última sesión:** 3 de julio de 2026 — T16 componentes UI base completado.
+**Tarea en progreso:** Ninguna — T17 completada.
+**Bloqueantes activos:** Ninguno (ver nota sobre `test_auth.py` en Notas de sesión — preexistente, no bloquea T17). Ver también nota T17 sobre gap de endpoints de prospectos vs PLAN.md.
+**Última sesión:** 3 de julio de 2026 — T17 cliente HTTP del frontend completado.
 
 ---
 
 ## PRÓXIMA TAREA
 
-**T17 — Cliente HTTP del frontend**
+**T18 — Página pública de prospecto (resolver del QR)**
 
-Referencia completa en `docs/PLAN.md § Sección 3 · T17`.
+Referencia completa en `docs/PLAN.md § Sección 3 · T18`.
 
 ---
 
@@ -47,7 +47,7 @@ Referencia completa en `docs/PLAN.md § Sección 3 · T17`.
 
 - [x] **T15** — Setup Next.js + Tailwind + design tokens ✅ · 3 jul 2026
 - [x] **T16** — Componentes UI base ✅ · 3 jul 2026
-- [ ] **T17** — Cliente HTTP del frontend
+- [x] **T17** — Cliente HTTP del frontend ✅ · 3 jul 2026
 - [ ] **T18** — Página pública de prospecto (resolver del QR)
 
 ### FASE 3 — Panel admin
@@ -89,6 +89,7 @@ Referencia completa en `docs/PLAN.md § Sección 3 · T17`.
 - [x] **T14** — Script de migración desde Excel ✅ · 3 jul 2026
 - [x] **T15** — Setup Next.js + Tailwind + design tokens ✅ · 3 jul 2026
 - [x] **T16** — Componentes UI base ✅ · 3 jul 2026
+- [x] **T17** — Cliente HTTP del frontend ✅ · 3 jul 2026
 
 ---
 
@@ -274,6 +275,22 @@ Referencia completa en `docs/PLAN.md § Sección 3 · T17`.
 **[T16 · 3 jul 2026]** `npm run build` (producción) completó sin errores: 3 rutas generadas como estático (`/`, `/_not-found`, `/dev/components`), sin warnings de TypeScript ni Tailwind. Verificado con `rg` que ningún archivo de `components/ui/` usa clases de paleta Tailwind por defecto (`bg-blue-*`, `text-red-*`, etc.) — todos los colores vienen de tokens `vent3-*`.
 
 **[T16 · 3 jul 2026]** Suite de backend: T16 no tocó `apps/api`. Confirmado por el usuario: **95/97 verdes, mismos 2 preexistentes de `test_auth.py` desde T9** — sin regresiones.
+
+**[T17 · 3 jul 2026]** Confirmado el gotcha crítico anticipado antes de la sesión: `packages/contracts/src/api.ts` estaba desactualizado desde T1 (solo `/health` en `paths`), porque ninguna sesión de backend de T5 a T14 volvió a correr `npm run contracts:generate` tras agregar endpoints. Regenerado en esta sesión sin bloqueos: el agente sí pudo levantar `uv run uvicorn src.main:app --port 8000` (pydantic-settings lee `apps/api/.env` internamente sin que el agente necesite leerlo) y correr `npm run contracts:generate` desde la raíz. `paths` ahora tiene las 10 rutas reales (`/api/auth/*`, `/api/productos*`, `/api/prospectos*`, `/api/internal/prospectos/by-gtin/{gtin}`, `/api/audit-log`).
+
+**[T17 · 3 jul 2026]** Recordatorio de la decisión de T5 (no repetir el error de intentar commitear el archivo generado): `packages/contracts/src/api.ts` sigue en `.gitignore` — no se agrega al commit de T17 pese a que el `session_prompt` original de esta tarea sugería `git add packages/contracts/src/api.ts`. Se corrigió antes de commitear. Cada sesión de backend que agregue/modifique endpoints debe correr `npm run contracts:generate` localmente antes de cerrar, pero el archivo resultante no se versiona.
+
+**[T17 · 3 jul 2026]** GAP descubierto entre `docs/PLAN.md §Sección 3` y el backend real: PLAN.md documenta `GET /api/prospectos` (listado con filtros) y `GET /api/prospectos/{id}/download-url`, pero `apps/api/src/routers/prospectos.py` solo implementa `POST /api/prospectos` (subir) y `PATCH /api/prospectos/{id}/activar`. `api-client.ts` NO incluye funciones para esas dos rutas porque no existen en el backend — no se inventaron tipos ni funciones contra endpoints inexistentes. T20/T21 (dashboard y detalle de producto) van a necesitar el listado de prospectos por producto; si para entonces esos endpoints siguen sin existir, es un `[BLOQUEANTE]` a resolver en una sesión de backend antes de T21, no algo que T17 podía inventar de su lado.
+
+**[T17 · 3 jul 2026]** Decisión de diseño no pedida explícitamente en el `session_prompt` pero necesaria: el `apiFetch` genérico redirige a `/admin/login` en cualquier 401 — correcto para sesión expirada, pero `POST /api/auth/login` también devuelve 401 cuando la contraseña es incorrecta (`detail: "Credenciales inválidas"`). Sin distinción, un intento de login fallido en T19 hubiera disparado el redirect en lugar de mostrar el mensaje de error en el propio formulario, rompiendo el criterio de done de T19 ("login fallido muestra mensaje genérico"). Se agregó una opción interna `redirectOn401` (default `true`) y `login()` la pasa en `false`. Verificado en navegador real: login inválido devuelve `ApiError(401, "Credenciales inválidas")` sin redirigir; `GET /api/auth/me` sin cookie sí redirige.
+
+**[T17 · 3 jul 2026]** Nombre de variable de entorno para la URL de la API: `NEXT_PUBLIC_API_URL` (prefijo obligatorio de Next.js para que sea legible desde el navegador), con fallback a `http://localhost:8000` en `api-client.ts` si no está seteada. No existía convención previa en PLAN.md ni `.env.example`. **Pendiente para el usuario:** agregar `NEXT_PUBLIC_API_URL=http://localhost:8000` a `apps/web/.env.local` si no está ya — el agente no puede leer ni escribir archivos `.env*` (restricción de permisos ya documentada desde T1).
+
+**[T17 · 3 jul 2026]** Verificación real en navegador (Playwright, mismo patrón que T16): se creó `apps/web/app/dev/api-client-test/page.tsx` (Client Component, sigue la convención `/dev/*` de T15/T16) con dos botones. Caso 1 — `GET /api/auth/me` sin cookie: la consola de red confirma `401` y `page.url()` cambia a `http://localhost:3000/admin/login` (esa ruta da 404 porque no existe hasta T19 — esperado y aceptado por el criterio de done). Caso 2 — `login()` con credenciales inválidas: NO redirige, permanece en `/dev/api-client-test`, y el log en pantalla muestra `ApiError capturado (sin redirect): status=401 detail="Credenciales inválidas"`. `npm run build` en producción compiló sin errores en ambos ajustes (el primero con un error de tipos por falta de index signature en las interfaces `ListarProductosParams`/`ListarAuditLogParams`, corregido agregando `[key: string]: string | number | undefined` a ambas).
+
+**[T17 · 3 jul 2026]** GOTCHA de entorno, no de código: había un proceso `next dev` colgado de una sesión previa (iniciado ~11:51, antes de esta sesión) ocupando el puerto 3000, lo que hacía que el nuevo `next dev` de esta sesión arrancara silenciosamente en el 3001 y las pruebas fallaran con CORS (`FRONTEND_URL` del backend apunta a `:3000`). Se mató el proceso viejo y se reinició limpio en `:3000`. Si una futura sesión ve fallos de CORS al probar el frontend contra el backend local, verificar primero en qué puerto quedó realmente `next dev` (`Port 3000 is in use, trying 3001 instead` en el log) antes de asumir que es un bug del cliente HTTP o de la config de CORS del backend.
+
+**[T17 · 3 jul 2026]** Suite de backend: T17 no tocó `apps/api`. En el shell del agente: `26 passed, 71 skipped` (mismo patrón sin `TEST_DATABASE_URL` exportada, esperado desde T14/T15). **Pendiente de confirmación del usuario en su máquina real:** se espera 95/97 verdes, mismos 2 preexistentes de `test_auth.py` desde T9, sin regresiones — T17 es una tarea 100% de frontend.
 
 ---
 > Actualizar este archivo al finalizar cada sesión. Formato sugerido para COMPLETADAS:
