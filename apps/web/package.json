@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "prebuild": "bash ../../packages/contracts/scripts/generate.sh",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"

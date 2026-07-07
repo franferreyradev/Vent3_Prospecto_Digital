@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 set -e
 
-API_URL="http://localhost:8000"
+if [ -n "$VERCEL" ]; then
+  API_URL="${CONTRACTS_API_URL:-https://api.vent3.com.ar}"
+else
+  API_URL="${CONTRACTS_API_URL:-http://localhost:8000}"
+fi
 OPENAPI_FILE="/tmp/vent3-openapi.json"
 OUTPUT_FILE="$(dirname "$0")/../src/api.ts"
 
