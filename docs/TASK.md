@@ -7,9 +7,9 @@
 
 ## ESTADO ACTUAL
 
-**Tarea en progreso:** Ninguna — T24 completada.
-**Bloqueantes activos:** Ninguno. T24 es 100% frontend estático, no tocó `apps/api` — suite de backend sigue en 101/103 verdes (sin necesidad de re-correrlo, no se tocó código de backend). Pendientes abiertos arrastrados de T23: datos de contacto placeholders, azul corporativo pendiente de confirmar con marca; nuevo pendiente de T24: imagen de Open Graph (`openGraph.images`) no seteada, falta asset real de marketing.
-**Última sesión:** 8 de julio de 2026 — T24 SEO, metadata y accesibilidad completada.
+**Tarea en progreso:** Ninguna — T24 completada. Gap de backend de T25 (endpoint de GTINs) resuelto por adelantado.
+**Bloqueantes activos:** Ninguno. Pendientes abiertos arrastrados de T23/T24: datos de contacto placeholders, azul corporativo pendiente de confirmar con marca, imagen de Open Graph sin asset real.
+**Última sesión:** 8 de julio de 2026 — T24 completada + gap de T25 (`PATCH /api/gtins/{id}`) resuelto por adelantado. Suite de backend: 105/107 verdes (101 previos + 4 nuevos de `test_gtins.py`; los mismos 2 fallos preexistentes de `test_auth.py` desde T9, sin relación).
 
 ---
 
@@ -17,7 +17,7 @@
 
 **T25 — Generación de QRs en portal GS1 Argentina**
 
-Referencia completa en `docs/PLAN.md § Sección 3 · T25`. Tarea operativa, sin código — ingresar al portal GS1, generar QR Datamatrix con dominio propio para cada GTIN activo. Depende de T18 (resolver del QR), ya completada.
+Referencia completa en `docs/PLAN.md § Sección 3 · T25`. Tarea operativa (portal GS1 + descarga de imágenes), sin código pendiente — el gap de backend que tenía (actualizar `gtin_registro.url_digital_link`/`qr_generado` sin bypasear `audit_log`, ver nota de sesión abajo) ya se resolvió por adelantado con `PATCH /api/gtins/{id}`. Depende de T18 (resolver del QR), ya completada.
 
 ---
 
@@ -406,6 +406,10 @@ Referencia completa en `docs/PLAN.md § Sección 3 · T25`. Tarea operativa, sin
 **[T24 · 8 jul 2026]** Lighthouse (SEO + Accessibility) corrido contra el build de producción real: `/` → **SEO 100, Accessibility 100**. `/01/02000000001340` (prospecto único) → **Accessibility 100**, **SEO 63** — el único audit que falla es `is-crawlable` ("Page is blocked from indexing"), esperado e intencional por el `robots: {index:false}` agregado arriba, no es un defecto. El resto de los audits de SEO (meta description, viewport, etc.) pasan limpios en ambas páginas.
 
 **[T24 · 8 jul 2026]** `npm run build` corrió contra el backend local levantado a propósito para esta sesión (`uv run uvicorn src.main:app --host 0.0.0.0 --port 8000`, la DB `vent3-db` ya estaba arriba de una sesión anterior) — no había ningún `next dev` corriendo en paralelo al iniciar la sesión (confirmado con `ps aux` antes de buildear). Build completó sin errores ni warnings. T24 no tocó ningún archivo de `apps/api` (confirmado con `git status --short` antes de cerrar) — no hizo falta re-correr pytest, sigue en 101/103 verdes confirmado en sesiones anteriores. Todos los procesos levantados para esta verificación (`next start`, `uvicorn`) se detuvieron al cerrar la sesión.
+
+**[Pre-T25 · 8 jul 2026] Gap de backend resuelto antes de iniciar la tarea operativa.** `PLAN.md §T25` pide "Actualizar `gtin_registro.url_digital_link` y `qr_generado=TRUE` en la DB" pero está clasificada como "Archivos afectados: ninguno de código" — no existía ningún endpoint que tocara esos campos (confirmado con `rg` sobre todos los routers: la única ruta que lee `gtin_registro` es `GET /api/internal/prospectos/by-gtin/{gtin}`, de solo lectura). El único camino posible era SQL directo, lo cual bypasea `audit_log` — mismo patrón que ya generó deuda técnica real en T18 (datos QA `EXP-QA-001/002` insertados por SQL directo, sin auditoría, detectados y limpiados recién en la sesión post-T23) y viola RNF-07 (GTINs son dato crítico, todo cambio debe auditarse). Con confirmación del usuario, se creó `PATCH /api/gtins/{id}` siguiendo el mismo patrón router→service→repository que productos/prospectos, con auditoría por campo modificado vía `AuditoriaService` — mismo criterio que el gap de T21 (se amplía el trabajo previo a la tarea que lo necesita, no se abre tarea nueva separada).
+
+**[Pre-T25 · 8 jul 2026]** Archivos nuevos: `schemas/gtin.py` (+`GtinUpdateRequest`: `url_digital_link`, `qr_generado`, `validado_gs1` — los tres opcionales, cubre también el update de T26), `repositories/gtins.py` (`GtinsRepository`, mínimo, hereda de `BaseRepository`), `services/gtins.py` (`GtinsService.actualizar()`, mismo patrón que `ProductosService.actualizar()` pero sin `refresh(attribute_names=["updated_at"])` porque `gtin_registro` no tiene esa columna), `routers/gtins.py` (`PATCH /api/gtins/{id}`, `require_admin`). Wired en `main.py`. 4 tests nuevos en `tests/test_gtins.py` (401 sin auth, 404 inexistente, update de url+qr_generado con auditoría de ambos campos, update de validado_gs1 con auditoría) — corridos contra la DB de test local (`vent3_test`, puerto 5433, admin seed `admin@test.com` ya existente ahí). Suite completa: **105/107 verdes** (101 previos + estos 4; los 2 fallos siguen siendo los preexistentes de `test_auth.py` desde T9, sin relación). Gotcha del propio test: el GTIN de prueba generado con `uuid.uuid4().hex` fallaba la constraint `gtin_registro_gtin_check` (`^\d{14}$`) porque el hex puede traer letras a-f — se generó con `uuid.uuid4().int % 10**11` para garantizar solo dígitos. No se tocó el frontend — no hacía falta regenerar contratos para esta sesión.
 
 ---
 > Actualizar este archivo al finalizar cada sesión. Formato sugerido para COMPLETADAS:
