@@ -7,17 +7,17 @@
 
 ## ESTADO ACTUAL
 
-**Tarea en progreso:** Ninguna — T22 completada.
-**Bloqueantes activos:** Ninguno. Suite backend confirmado 101/103 verdes tras T22 (mismo conteo que T21 — T22 no agregó tests nuevos, solo un fix de bug preexistente), mismos 2 preexistentes de `test_auth.py` desde T9, sin regresión. Pendientes abiertos: (1) datos de QA (`EXP-QA-001`/`EXP-QA-002`) en la DB de producción de Railway, sin resolver desde T18.
-**Última sesión:** 8 de julio de 2026 — T22 vista de audit log completada.
+**Tarea en progreso:** Ninguna — T23 completada.
+**Bloqueantes activos:** Ninguno. T23 es 100% frontend estático, no tocó `apps/api` — suite de backend sigue en 101/103 verdes (sin necesidad de re-correrlo). Pendientes abiertos: (1) datos de QA (`EXP-QA-001`/`EXP-QA-002`) en la DB de producción de Railway, sin resolver desde T18; (2) datos de contacto (email/teléfono/dirección) en `app/(public)/layout.tsx` son placeholders — reemplazar por los reales antes de producción.
+**Última sesión:** 8 de julio de 2026 — T23 páginas institucionales completada.
 
 ---
 
 ## PRÓXIMA TAREA
 
-**T23 — Páginas institucionales (home, nosotros, productos, contacto)**
+**T24 — SEO, metadata y accesibilidad**
 
-Referencia completa en `docs/PLAN.md § Sección 3 · T23`. Depende de T16 (componentes UI base), no de T20/T21/T22.
+Referencia completa en `docs/PLAN.md § Sección 3 · T24`. Depende de T23 (páginas institucionales), ya completada.
 
 ---
 
@@ -59,7 +59,7 @@ Referencia completa en `docs/PLAN.md § Sección 3 · T23`. Depende de T16 (comp
 
 ### FASE 4 — Sitio institucional
 
-- [ ] **T23** — Páginas institucionales (home, nosotros, productos, contacto)
+- [x] **T23** — Páginas institucionales (home, nosotros, productos, contacto) ✅ · 8 jul 2026
 - [ ] **T24** — SEO, metadata y accesibilidad
 
 ### FASE 5 — Operativa GS1 y entrega
@@ -95,6 +95,7 @@ Referencia completa en `docs/PLAN.md § Sección 3 · T23`. Depende de T16 (comp
 - [x] **T20** — Dashboard de productos ✅ · 8 jul 2026
 - [x] **T21** — Detalle de producto y gestión de prospectos ✅ · 8 jul 2026
 - [x] **T22** — Vista de audit log ✅ · 8 jul 2026
+- [x] **T23** — Páginas institucionales (home, nosotros, productos, contacto) ✅ · 8 jul 2026
 
 ---
 
@@ -370,6 +371,20 @@ Referencia completa en `docs/PLAN.md § Sección 3 · T23`. Depende de T16 (comp
 **[T22 · 8 jul 2026]** Suite de backend corrido en esta sesión con `DATABASE_URL` real cargada (`set -a; source .env; set +a; uv run pytest -q`): **101 passed, 2 failed** — los mismos 2 preexistentes de `test_auth.py` desde T9, sin cambios. Confirma que el fix de `ip_origen` no rompió nada (incluidos los tests de `test_audit_router.py`, que no seedean `ip_origen` y por eso nunca hubieran detectado este bug).
 
 **[T22 · 8 jul 2026]** Recordatorio: sigue pendiente desde T18 decidir con el usuario qué hacer con los datos de QA (`EXP-QA-001`/`EXP-QA-002`) en la DB de producción de Railway — no se tocó en esta sesión.
+
+**[T23 · 8 jul 2026]** Route group `app/(public)/` creado tal cual pide `docs/PLAN.md §T23` (no cambia URLs, solo permite un layout propio con nav+footer institucional sin afectar `/01/[gtin]` ni `/admin/*`). El viejo `app/page.tsx` (placeholder de T15 con los 11 swatches de design tokens) se borró — el home nuevo vive en `app/(public)/page.tsx`, sin dos archivos compitiendo por la ruta "/". `RootLayout` (`app/layout.tsx`) no se tocó: sigue importando `globals.css` y seteando `<html lang="es">`, cada página institucional define su propio `metadata` (title/description/OG) que sobreescribe el default.
+
+**[T23 · 8 jul 2026]** Se creó `components/ui/Textarea.tsx` (mismo patrón exacto que `Input.tsx` de T16: `'use client'`, `useId()`, `label`/`error`/`helperText`) — no existía en el inventario de T16 y el form de contacto lo necesitaba para el campo "mensaje". Nav mobile extraído a `components/institucional/NavMobile.tsx` (client island con `useState` para el toggle del menú hamburguesa) siguiendo el patrón "server page + client island" ya establecido en T16/T18 — el resto del layout (`app/(public)/layout.tsx`) es Server Component. El form de contacto se extrajo a `components/institucional/ContactoForm.tsx` (client, por el `onSubmit`) porque `app/(public)/contacto/page.tsx` necesitaba quedar como Server Component para poder exportar `metadata` (un archivo con `'use client'` no puede exportar `metadata` en Next.js App Router).
+
+**[T23 · 8 jul 2026]** Decisión D2 (contacto sin backend) implementada tal cual estaba acordado: `ContactoForm.tsx` arma un link `mailto:contacto@vent3.com.ar?subject=...&body=...` con los datos del form urlencoded y lo asigna a `window.location.href` en el `onSubmit` — sin fetch, sin backend nuevo. Decisión D3 (productos estático) implementada: `app/(public)/productos/page.tsx` es un array hardcodeado de 4 líneas terapéuticas genéricas (analgésicos, antibióticos, cardiovascular, respiratorio) — no importa nada de `api-client.ts`.
+
+**[T23 · 8 jul 2026]** Datos de contacto en el footer (`app/(public)/layout.tsx`) y en `ContactoForm.tsx` (`contacto@vent3.com.ar`, teléfono, "Córdoba, Argentina") son **placeholders explícitos** — no existen datos reales en `SPEC.md`/`PLAN.md`/`CLAUDE.md`. Mismo patrón que el comentario ya existente en `tailwind.config.ts` sobre el azul corporativo "a confirmar". Pendiente de reemplazo por datos reales antes de producción (agregado a ESTADO ACTUAL arriba).
+
+**[T23 · 8 jul 2026]** Verificación con Playwright headless (mismo patrón T16-T22, corrido desde un script en el scratchpad de la sesión, no versionado): las 4 rutas (`/`, `/nosotros`, `/productos`, `/contacto`) responden 200 sin errores de consola, en viewport mobile (375×667) y desktop (1440×900), sin overflow horizontal en ninguna. Nav desktop y nav mobile (hamburguesa) navegan correctamente entre las 4 páginas. Verificación del `mailto:` requirió interceptar a nivel CDP (`Page.frameRequestedNavigation` vía `newCDPSession`) porque los navegadores no navegan realmente a un link `mailto:` (el `window.location.href` no cambia) — confirmado que el link generado incluye el email de contacto correcto y los datos reales cargados en el form (nombre, email, mensaje), urlencoded.
+
+**[T23 · 8 jul 2026]** `npm run build` corrió contra el backend local levantado a propósito para esta sesión (`uv run uvicorn src.main:app --reload` + `docker` ya tenía `vent3-db` arriba de antes) — no había ningún `next dev` corriendo en paralelo al iniciar la sesión (confirmado con `ps aux` antes de buildear), así que no aplicó el gotcha de T20-T22 de corromper un `.next` ajeno. Build completó sin errores de tipos ni compilación: las 4 páginas institucionales quedaron `○ (Static)`, igual que `/admin/*`. Lighthouse mobile corrido contra el build de producción real (`next start`, no `next dev`) sobre `/`: **score 99/100** (FCP 1.4s, LCP 1.4s, TBT 80ms, CLS 0) — supera ampliamente el criterio de done (≥90). Todos los procesos levantados para esta verificación (`next start`, `uvicorn`) se detuvieron al cerrar la sesión.
+
+**[T23 · 8 jul 2026]** Suite de backend: T23 no tocó ningún archivo de `apps/api` (confirmado con `git status --short` antes de cerrar — solo aparecen archivos bajo `apps/web/`). No hizo falta re-correr pytest: sigue en 101/103 verdes confirmado en T21/T22, sin cambios de código de backend que puedan afectarlo.
 
 ---
 > Actualizar este archivo al finalizar cada sesión. Formato sugerido para COMPLETADAS:
