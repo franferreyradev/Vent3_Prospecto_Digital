@@ -2,6 +2,7 @@
 
 import type { components } from '@vent3/contracts';
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import {
   obtenerProducto,
@@ -124,6 +125,13 @@ export default function ProductoDetallePage() {
           <Toast type={toast.type} message={toast.message} />
         </div>
       )}
+
+      <Link
+        href="/admin"
+        className="mb-4 inline-flex items-center gap-1 text-sm text-vent3-text-secondary hover:text-vent3-text-primary"
+      >
+        ← Volver al listado
+      </Link>
 
       <div className="mb-6 flex items-start justify-between">
         <div>
