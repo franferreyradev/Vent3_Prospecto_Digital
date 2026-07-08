@@ -29,7 +29,8 @@ class AuditLog(Base):
         ForeignKey("usuarios.id", ondelete="RESTRICT"),
         nullable=False,
     )
-    # INET en PostgreSQL — asyncpg devuelve string; se usa INET para match exacto con schema
+    # INET en PostgreSQL — SQLAlchemy/asyncpg devuelve IPv4Address/IPv6Address, no str
+    # (coerción a str vive en AuditLogResponse.coerce_ip_origen, apps/api/src/schemas/audit.py)
     ip_origen: Mapped[str | None] = mapped_column(INET, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
