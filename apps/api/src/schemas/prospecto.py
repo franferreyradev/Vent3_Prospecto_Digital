@@ -29,3 +29,7 @@ class ProspectoCreateRequest(BaseModel):
 class ProspectoActivarResponse(BaseModel):
     activado: ProspectoResponse
     reemplazado: ProspectoResponse | None = None
+
+
+class ProspectoDownloadUrlResponse(BaseModel):
+    url: str

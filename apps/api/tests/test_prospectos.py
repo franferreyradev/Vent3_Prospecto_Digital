@@ -419,3 +419,117 @@ async def test_activar_maximo_un_vigente_por_audiencia(
     audiencias_vigentes = {row[0] for row in vigentes}
     assert audiencias_vigentes == {"publico_general", "profesional_salud"}
     assert all(row[1] == "vigente" for row in vigentes)
+
+
+# ── TC9: listado sin filtros incluye el prospecto recién creado ─────────
+
+
+@pytest.mark.asyncio
+async def test_listar_prospectos_sin_filtros_incluye_prospecto_creado(
+    auth_client: AsyncClient, producto_seed
+) -> None:
+    subida = await _subir_prospecto(auth_client, producto_seed["sufijo"], producto_seed["id"])
+    prospecto_id = subida.json()["id"]
+
+    response = await auth_client.get("/api/prospectos")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert any(p["id"] == prospecto_id for p in body["data"])
+    assert "total" in body and "page" in body and "limit" in body
+
+
+# ── TC10: listado por producto_id devuelve vigentes y reemplazados ──────
+
+
+@pytest.mark.asyncio
+async def test_listar_prospectos_por_producto_id_incluye_vigente_y_reemplazado(
+    auth_client: AsyncClient, producto_seed
+) -> None:
+    sufijo = producto_seed["sufijo"]
+    producto_id = producto_seed["id"]
+
+    r1 = await _subir_prospecto(auth_client, sufijo, producto_id, version=1)
+    prospecto1_id = r1.json()["id"]
+    await auth_client.patch(
+        f"/api/prospectos/{prospecto1_id}/activar", json={"producto_id": str(producto_id)}
+    )
+
+    r2 = await _subir_prospecto(auth_client, sufijo, producto_id, version=2)
+    prospecto2_id = r2.json()["id"]
+    await auth_client.patch(
+        f"/api/prospectos/{prospecto2_id}/activar", json={"producto_id": str(producto_id)}
+    )
+
+    response = await auth_client.get("/api/prospectos", params={"producto_id": str(producto_id)})
+
+    assert response.status_code == 200
+    body = response.json()
+    ids_estado = {p["id"]: p["estado_vigencia"] for p in body["data"]}
+    assert ids_estado[prospecto1_id] == "reemplazado"
+    assert ids_estado[prospecto2_id] == "vigente"
+
+
+# ── TC11: listado filtrado por estado_vigencia ───────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_listar_prospectos_filtrado_por_estado_vigencia(
+    auth_client: AsyncClient, producto_seed
+) -> None:
+    producto_id = producto_seed["id"]
+    subida = await _subir_prospecto(auth_client, producto_seed["sufijo"], producto_id)
+    prospecto_id = subida.json()["id"]
+
+    response = await auth_client.get(
+        "/api/prospectos",
+        params={"estado_vigencia": "en_revision", "limit": 200},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert all(p["estado_vigencia"] == "en_revision" for p in body["data"])
+    assert any(p["id"] == prospecto_id for p in body["data"])
+
+
+# ── TC12: download-url de un prospecto existente retorna URL firmada ────
+
+
+@pytest.mark.asyncio
+async def test_obtener_download_url_prospecto_existente_retorna_url(
+    auth_client: AsyncClient, producto_seed, mock_r2
+) -> None:
+    url_esperada = "https://r2.example.com/presigned?sig=abc123"
+    mock_r2.generate_presigned_url.return_value = url_esperada
+
+    subida = await _subir_prospecto(auth_client, producto_seed["sufijo"], producto_seed["id"])
+    prospecto_id = subida.json()["id"]
+
+    response = await auth_client.get(f"/api/prospectos/{prospecto_id}/download-url")
+
+    assert response.status_code == 200
+    assert response.json()["url"] == url_esperada
+
+
+# ── TC13: download-url de un prospecto inexistente retorna 404 ──────────
+
+
+@pytest.mark.asyncio
+async def test_obtener_download_url_prospecto_inexistente_retorna_404(
+    auth_client: AsyncClient,
+) -> None:
+    response = await auth_client.get(f"/api/prospectos/{uuid.uuid4()}/download-url")
+
+    assert response.status_code == 404
+
+
+# ── TC14: listado y download-url sin autenticación retornan 401 ─────────
+
+
+@pytest.mark.asyncio
+async def test_listar_y_download_url_sin_autenticacion_retorna_401(client: AsyncClient) -> None:
+    response_listar = await client.get("/api/prospectos")
+    response_download = await client.get(f"/api/prospectos/{uuid.uuid4()}/download-url")
+
+    assert response_listar.status_code == 401
+    assert response_download.status_code == 401

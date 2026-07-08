@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.producto import Producto
@@ -12,6 +12,34 @@ from src.repositories.base import BaseRepository
 class ProspectosRepository(BaseRepository[Prospecto]):
     def __init__(self, session: AsyncSession) -> None:
         super().__init__(session, Prospecto)
+
+    async def listar(
+        self,
+        producto_id: UUID | None,
+        estado_vigencia: str | None,
+        offset: int,
+        limit: int,
+    ) -> tuple[list[Prospecto], int]:
+        query = select(Prospecto)
+        count_query = select(func.count()).select_from(Prospecto)
+
+        if producto_id is not None:
+            query = query.join(
+                ProductoProspecto, ProductoProspecto.prospecto_id == Prospecto.id
+            ).where(ProductoProspecto.producto_id == producto_id)
+            count_query = count_query.join(
+                ProductoProspecto, ProductoProspecto.prospecto_id == Prospecto.id
+            ).where(ProductoProspecto.producto_id == producto_id)
+
+        if estado_vigencia is not None:
+            query = query.where(Prospecto.estado_vigencia == estado_vigencia)
+            count_query = count_query.where(Prospecto.estado_vigencia == estado_vigencia)
+
+        query = query.order_by(Prospecto.created_at.desc()).offset(offset).limit(limit)
+
+        total = (await self.session.execute(count_query)).scalar_one()
+        prospectos = list((await self.session.execute(query)).scalars().all())
+        return prospectos, total
 
     async def get_vigente_por_producto_y_audiencia(
         self, producto_id: UUID, tipo_audiencia: str

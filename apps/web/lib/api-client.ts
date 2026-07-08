@@ -138,15 +138,11 @@ export async function cambiarEstadoProducto(
 }
 
 // ── Prospectos ────────────────────────────────────────────────────────
-// Nota: PLAN.md §Sección 3 documenta también `GET /api/prospectos` y
-// `GET /api/prospectos/{id}/download-url`, pero esos endpoints no están
-// implementados en apps/api/src/routers/prospectos.py (solo existen POST
-// "" y PATCH "/{id}/activar"). No se agregan funciones para rutas que no
-// existen en el backend — ver docs/TASK.md para el seguimiento de este
-// gap.
 
 type ProspectoResponse = components['schemas']['ProspectoResponse'];
 type ProspectoActivarResponse = components['schemas']['ProspectoActivarResponse'];
+type ProspectoListResponse = components['schemas']['PaginatedResponse_ProspectoResponse_'];
+type ProspectoDownloadUrlResponse = components['schemas']['ProspectoDownloadUrlResponse'];
 
 export async function subirProspecto(formData: FormData): Promise<ProspectoResponse> {
   return apiFetch<ProspectoResponse>('/api/prospectos', {
@@ -163,6 +159,24 @@ export async function activarProspecto(
     method: 'PATCH',
     body: JSON.stringify({ producto_id: productoId }),
   });
+}
+
+export interface ListarProspectosParams {
+  producto_id?: string;
+  estado_vigencia?: string;
+  page?: number;
+  limit?: number;
+  [key: string]: string | number | undefined;
+}
+
+export async function listarProspectos(
+  params: ListarProspectosParams = {},
+): Promise<ProspectoListResponse> {
+  return apiFetch<ProspectoListResponse>(`/api/prospectos${buildQuery(params)}`);
+}
+
+export async function obtenerUrlDescargaProspecto(id: string): Promise<ProspectoDownloadUrlResponse> {
+  return apiFetch<ProspectoDownloadUrlResponse>(`/api/prospectos/${id}/download-url`);
 }
 
 // ── Audit log ─────────────────────────────────────────────────────────
