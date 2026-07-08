@@ -7,17 +7,17 @@
 
 ## ESTADO ACTUAL
 
-**Tarea en progreso:** Ninguna — T21 completada.
-**Bloqueantes activos:** Ninguno. Suite backend confirmado 101/103 verdes tras T21 (14 TCs nuevos en `test_prospectos.py`, todos verdes), mismos 2 preexistentes de `test_auth.py` desde T9, sin regresión. Pendientes abiertos: (1) datos de QA (`EXP-QA-001`/`EXP-QA-002`) en la DB de producción de Railway, sin resolver desde T18.
-**Última sesión:** 8 de julio de 2026 — T21 detalle de producto y gestión de prospectos completado.
+**Tarea en progreso:** Ninguna — T22 completada.
+**Bloqueantes activos:** Ninguno. Suite backend confirmado 101/103 verdes tras T22 (mismo conteo que T21 — T22 no agregó tests nuevos, solo un fix de bug preexistente), mismos 2 preexistentes de `test_auth.py` desde T9, sin regresión. Pendientes abiertos: (1) datos de QA (`EXP-QA-001`/`EXP-QA-002`) en la DB de producción de Railway, sin resolver desde T18.
+**Última sesión:** 8 de julio de 2026 — T22 vista de audit log completada.
 
 ---
 
 ## PRÓXIMA TAREA
 
-**T22 — Vista de audit log**
+**T23 — Páginas institucionales (home, nosotros, productos, contacto)**
 
-Referencia completa en `docs/PLAN.md § Sección 3 · T22`. Ruta `apps/web/app/admin/auditoria/page.tsx`, listado paginado con filtros por tabla/usuario/rango de fechas, consume `listarAuditLog()` de `api-client.ts` (ya existe desde T13/T17).
+Referencia completa en `docs/PLAN.md § Sección 3 · T23`. Depende de T16 (componentes UI base), no de T20/T21/T22.
 
 ---
 
@@ -55,7 +55,7 @@ Referencia completa en `docs/PLAN.md § Sección 3 · T22`. Ruta `apps/web/app/a
 - [x] **T19** — Login del admin ✅ · 8 jul 2026
 - [x] **T20** — Dashboard de productos ✅ · 8 jul 2026
 - [x] **T21** — Detalle de producto y gestión de prospectos ✅ · 8 jul 2026
-- [ ] **T22** — Vista de audit log
+- [x] **T22** — Vista de audit log ✅ · 8 jul 2026
 
 ### FASE 4 — Sitio institucional
 
@@ -94,6 +94,7 @@ Referencia completa en `docs/PLAN.md § Sección 3 · T22`. Ruta `apps/web/app/a
 - [x] **T19** — Login del admin ✅ · 8 jul 2026
 - [x] **T20** — Dashboard de productos ✅ · 8 jul 2026
 - [x] **T21** — Detalle de producto y gestión de prospectos ✅ · 8 jul 2026
+- [x] **T22** — Vista de audit log ✅ · 8 jul 2026
 
 ---
 
@@ -355,6 +356,20 @@ Referencia completa en `docs/PLAN.md § Sección 3 · T22`. Ruta `apps/web/app/a
 **[T21 · 8 jul 2026]** Frontend: `app/admin/productos/[id]/page.tsx` (Client Component) + `components/admin/UploadProspecto.tsx` (Client Component) creados. `api-client.ts` ganó `listarProspectos()` y `obtenerUrlDescargaProspecto()` siguiendo el patrón exacto de `listarProductos()`/`listarAuditLog()`, sin tocar `subirProspecto()` ni `activarProspecto()`. El flujo de upload no es atómico: `UploadProspecto` sube el PDF y devuelve el `id`, la página pregunta con `window.confirm()` si activarlo ahora y llama `activarProspecto()` por separado — dos acciones de API distintas, una sola interacción de usuario.
 
 **[T21 · 8 jul 2026]** Verificación con Playwright headless (mismo patrón T16-T20) contra `/admin/productos/{id}` con un producto real (`ASPIRINA VENT3`, sin prospecto previo): ficha y listado renderizan, upload de PDF de prueba pasa a `en_revision`, confirmación de activación automática deja el badge en "Vigente", click en "Descargar" dispara la URL firmada real de R2 (popup abierto sin error), toggle activar/desactivar producto responde. Dato de prueba (`EXP-T21-VERIFY`) limpiado de la DB local tras la verificación para no contaminar el catálogo real. `npm run build` completó sin errores de tipos ni compilación — se corrió con el `next dev` del usuario activo en paralelo (confirmado con el usuario antes de correrlo, por el gotcha de T20); el `next dev` se verificó sano después (200 en `/admin/productos/{id}`), sin necesidad de reiniciarlo esta vez.
+
+**[T22 · 8 jul 2026]** Decisión sobre el filtro de fechas: `Input.tsx` (`apps/web/components/ui/Input.tsx:7`) solo aceptaba `'text' | 'email' | 'password' | 'file'`. Confirmado con el usuario: se extendió el union type para agregar `'date'` (opción de mantener consistencia del design system, en vez de un `<input type="date">` nativo suelto en la página). Queda como precedente para cualquier tarea futura que necesite un date picker — no hace falta volver a preguntar, usar `<Input type="date" .../>` directo.
+
+**[T22 · 8 jul 2026]** `apps/web/app/admin/auditoria/page.tsx` (Client Component completo, mismo criterio T19-T21) + `components/admin/AuditLogTable.tsx` (mismo patrón que `ProductTable.tsx` de T20). Filtros: tabla afectada (texto libre), usuario (input de texto para UUID, sin autocompletado — no existe endpoint de listado de usuarios, post-MVP según decisión #6 de CLAUDE.md), y rango de fechas `desde`/`hasta`. No se tocó `routers/services/repositories` de `apps/api` — sin gap de backend en esta tarea, tal como anticipaba el brief.
+
+**[T22 · 8 jul 2026] [BUG preexistente encontrado y arreglado, fuera de scope original de T22]** `GET /api/audit-log` devolvía 500 apenas había un evento con `ip_origen` poblado: la columna `INET` de Postgres vuelve de SQLAlchemy/asyncpg como `ipaddress.IPv4Address`, no como `str`, y `AuditLogResponse.model_validate()` (Pydantic v2) rechazaba la coerción automática. Bug preexistente desde T13, nunca se manifestó porque ningún test ni seed anterior poblaba `ip_origen` con un valor real. El comentario en `models/audit_log.py:32` decía explícitamente "asyncpg devuelve string" — **era falso**, causa de que pasara desapercibido. Fix: `@field_validator("ip_origen", mode="before")` en `schemas/audit.py` que castea a `str(v)` si no es `None`. Comentario del modelo corregido para no repetir el error. Confirmado con el usuario antes de tocar código fuera del scope original de T22 (commit separado: `fix: coerce ip_origen de IPv4Address a str en AuditLogResponse`, antes del commit de T22 en la misma rama).
+
+**[T22 · 8 jul 2026]** Verificación con Playwright headless (mismo patrón T16-T21) contra `/admin/auditoria`, logueado con credenciales reales pasadas por el usuario por chat: tabla renderiza 3 eventos reales de `audit_log` (generados por sesiones anteriores en la DB local). Filtro por tabla afectada (`productos`) → todas las filas devueltas corresponden a esa tabla. Filtro por rango de fechas 2020 (sin eventos) → "Sin resultados". Filtro `desde=hoy` → funciona sin error. **Solo hay 1 página de resultados** (3 eventos, `limit=50`) — no se pudo ejercer el escenario de paginación multipágina (Anterior/Siguiente entre página 1 y 2) por falta de volumen de datos en la DB local. Pendiente si una sesión futura necesita verificar ese caso específico: sembrar más eventos de audit_log o correr contra una DB con más historial.
+
+**[T22 · 8 jul 2026]** `npm run build` completó sin errores de tipos ni compilación (regenerando `packages/contracts/src/api.ts` contra la API real en `:8000`). Se mató un `next dev` que el usuario tenía corriendo en el puerto 3000 antes de buildear (mismo gotcha de T20/T21, confirmado con el usuario antes de matarlo) — no se volvió a levantar automáticamente al cerrar la sesión, el usuario puede levantarlo de nuevo con `npm run dev` si lo necesita.
+
+**[T22 · 8 jul 2026]** Suite de backend corrido en esta sesión con `DATABASE_URL` real cargada (`set -a; source .env; set +a; uv run pytest -q`): **101 passed, 2 failed** — los mismos 2 preexistentes de `test_auth.py` desde T9, sin cambios. Confirma que el fix de `ip_origen` no rompió nada (incluidos los tests de `test_audit_router.py`, que no seedean `ip_origen` y por eso nunca hubieran detectado este bug).
+
+**[T22 · 8 jul 2026]** Recordatorio: sigue pendiente desde T18 decidir con el usuario qué hacer con los datos de QA (`EXP-QA-001`/`EXP-QA-002`) en la DB de producción de Railway — no se tocó en esta sesión.
 
 ---
 > Actualizar este archivo al finalizar cada sesión. Formato sugerido para COMPLETADAS:
