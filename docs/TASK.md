@@ -7,17 +7,17 @@
 
 ## ESTADO ACTUAL
 
-**Tarea en progreso:** Ninguna — T18 completada.
-**Bloqueantes activos:** Ninguno (ver nota sobre `test_auth.py` en Notas de sesión — preexistente, no bloquea T18). Ver también nota T17 sobre gap de endpoints de prospectos vs PLAN.md (resuelto, ampliado scope de T21). Nota nueva T18: DB de desarrollo local no tenía GTINs vigentes ni prospectos — se sembraron datos de prueba, ver Notas de sesión.
-**Última sesión:** 3 de julio de 2026 — T18 página pública de prospecto (resolver del QR) completado.
+**Tarea en progreso:** Ninguna — T19 completada.
+**Bloqueantes activos:** `fix/get-db-commit-on-httpexception` pendiente de merge — esperando que el usuario corra el suite completo de backend con `TEST_DATABASE_URL` antes de mergear a `main` (ver Notas de sesión T19). Ver también nota T17 sobre gap de endpoints de prospectos vs PLAN.md (resuelto, ampliado scope de T21). Pendiente abierto de T18: datos de QA (`EXP-QA-001`/`EXP-QA-002`) en la DB de producción de Railway, sin resolver.
+**Última sesión:** 8 de julio de 2026 — T19 login del admin completado + bugfix de lockout no relacionado.
 
 ---
 
 ## PRÓXIMA TAREA
 
-**T19 — Login del admin**
+**T20 — Dashboard de productos**
 
-Referencia completa en `docs/PLAN.md § Sección 3 · T19`.
+Referencia completa en `docs/PLAN.md § Sección 3 · T20`.
 
 ---
 
@@ -52,7 +52,7 @@ Referencia completa en `docs/PLAN.md § Sección 3 · T19`.
 
 ### FASE 3 — Panel admin
 
-- [ ] **T19** — Login del admin
+- [x] **T19** — Login del admin ✅ · 8 jul 2026
 - [ ] **T20** — Dashboard de productos
 - [ ] **T21** — Detalle de producto y gestión de prospectos
 - [ ] **T22** — Vista de audit log
@@ -91,6 +91,7 @@ Referencia completa en `docs/PLAN.md § Sección 3 · T19`.
 - [x] **T16** — Componentes UI base ✅ · 3 jul 2026
 - [x] **T17** — Cliente HTTP del frontend ✅ · 3 jul 2026
 - [x] **T18** — Página pública de prospecto (resolver del QR) ✅ · 3 jul 2026
+- [x] **T19** — Login del admin ✅ · 8 jul 2026
 
 ---
 
@@ -320,6 +321,16 @@ Referencia completa en `docs/PLAN.md § Sección 3 · T19`.
 **[T18 · 3 jul 2026]** Para poder ver algo real en el celular (no solo la página de error), se corrió `scripts/migrar_excel.py` (T14) contra la DB de **producción** de Railway por primera vez — confirmado con el usuario antes de tocar la DB regulada. Resultado idempotente igual que en T14: **167 productos creados, 0 salteados, 34 principios activos creados, 4 filas "en proceso" ignoradas**. Conexión desde la máquina del agente vía el proxy público de Railway (`DATABASE_PUBLIC_URL` del servicio Postgres, distinto de la `DATABASE_URL` interna que usa el backend en Railway) — se usó `railway run --service Vent3_Prospecto_Digital_API env DATABASE_URL="<proxy_url>" uv run python scripts/migrar_excel.py`, sobreescribiendo solo `DATABASE_URL` y heredando el resto de las env vars reales del servicio.
 
 **[T18 · 3 jul 2026]** Después de migrar, se activó un GTIN vigente + prospecto de prueba en producción (mismo patrón que en dev, con URLs de PDF dummy públicas, ver nota más arriba sobre datos de dev): `02000000000015` (ASPIRINA VENT3, caso único) y `02000000000046` (ASPIRINA VENT3 — otro registro del mismo nombre comercial pero producto distinto, caso selector con `publico_general`/`profesional_salud`). **Estos son datos de prueba en la DB de producción real**, marcados con `numero_expediente` obviamente ficticio (`EXP-QA-001`, `EXP-QA-002`) para poder identificarlos y limpiarlos después. Verificado end-to-end con `curl` contra `https://www.vent3.com.ar/01/{gtin}`: ambos casos devuelven HTML ya resuelto (PDF embebido / selector con los 2 botones). **Pendiente:** decidir con el usuario si estos datos de QA se dejan, se reemplazan por prospectos reales, o se borran antes de ir a producción real de cara al público — no son datos reales del laboratorio.
+
+**[T19 · 8 jul 2026]** `apps/web/app/admin/login/page.tsx` creado como Client Component (`'use client'` en toda la página, no server-page-con-client-island como T18, porque acá todo el contenido es interactivo). Consume `login()` de `api-client.ts` (T17) sin tocarlo. Error genérico mostrado en un `<p className="text-vent3-danger">` arriba del formulario (no en la prop `error` de `Input`, que es por-campo) — cubre tanto "Credenciales inválidas" como el mensaje de cuenta bloqueada, tal cual llegan del backend, sin countdown calculado en el frontend (no hay dato de `bloqueado_hasta` expuesto para eso). No hay alias `@/` configurado en `tsconfig.json` de `apps/web` — se usan imports relativos (`../../../lib/api-client`), mismo patrón que T18/T16.
+
+**[T19 · 8 jul 2026] [BLOQUEANTE encontrado y resuelto en una rama aparte, no en T19]** Al probar el escenario de lockout (5 intentos fallidos + 1 más) con Playwright contra la DB local, se encontró que `intentos_fallidos` **nunca persistía** en la tabla `usuarios` — confirmado directo por SQL (`SELECT intentos_fallidos ... = 0` después de 5 fallos reales). Causa raíz en `apps/api/src/core/db.py::get_db()`: el `except Exception: await session.rollback()` capturaba también `HTTPException`, que es la forma en que `routers/auth.py` señaliza "credenciales inválidas" — cada 401 esperado deshacía el `flush()` que `registrar_intento_fallido()` (repositories/usuarios.py) había hecho justo antes de levantar la excepción. Bug de arquitectura compartida (`get_db` lo usan todos los routers), no específico de login, aunque login es el único endpoint actual que escribe y después levanta `HTTPException` en el mismo flujo (confirmado con `rg` sobre todos los routers/services). **Fix aplicado en rama separada `fix/get-db-commit-on-httpexception`** (no en `feat/t19-login-admin`): agregado un `except HTTPException: await session.commit(); raise` antes del `except Exception` genérico — un HTTPException es una respuesta de aplicación esperada, no un error de integridad transaccional, así que lo que se escribió antes debe persistir igual. Verificado con Playwright que, con el fix, el 6° intento (incluso con password correcta) muestra el mensaje de bloqueo. **Esta rama está commiteada pero NO mergeada a `main`** — el usuario pidió esperar a correr el suite completo de backend con `TEST_DATABASE_URL` en su máquina antes de mergear. Recordar retomarlo en la próxima sesión si sigue sin mergear.
+
+**[T19 · 8 jul 2026]** Verificación con Playwright headless (mismo patrón T16/T17/T18) contra `apps/web/app/admin/login`, con credenciales reales pasadas por el usuario (`ADMIN_EMAIL`/`ADMIN_INITIAL_PASSWORD` de su `.env` local, el agente no puede leer ese archivo): **Caso 1** (credenciales inválidas, email inexistente) → mensaje "Credenciales inválidas" en pantalla, `page.url()` se mantiene en `/admin/login`. **Caso 2** (credenciales correctas) → `page.url()` cambia a `/admin` (404 esperado y aceptado, T20 no existe todavía). **Caso 3** (5 intentos fallidos + 1 más) → solo pasó tras aplicar el fix de arriba; antes del fix el 6° intento con password correcta iniciaba sesión igual, sin mostrar bloqueo. Los 3 escenarios se corrieron **exclusivamente contra la DB local** (`vent3-db`, puerto 5433) — nunca contra producción de Railway. Tras las pruebas, se resetearon manualmente `intentos_fallidos`/`bloqueado_hasta` del admin real en la DB local a `0`/`NULL` por SQL directo, para no dejarlo bloqueado.
+
+**[T19 · 8 jul 2026]** `npm run build` (producción) completó sin errores — requiere el backend local corriendo en `:8000` porque el `prebuild` hook de T18 regenera `packages/contracts/src/api.ts` contra `openapi.json` real. Ruta `/admin/login` generada como estática (`○`), no dinámica.
+
+**[T19 · 8 jul 2026]** Suite de backend: pendiente de confirmación del usuario en su máquina con `TEST_DATABASE_URL` cargada. En el shell del agente (sin esa variable, mismo gotcha de sesiones anteriores): `26 passed, 71 skipped`, tanto en `main` como en la rama del fix — sin diferencias, ningún test no-skipped ejercita el flujo de lockout end-to-end contra la DB real. **Este es el chequeo importante que falta**: confirmar que el fix no rompe nada en los 71 tests que sí tocan DB.
 
 ---
 > Actualizar este archivo al finalizar cada sesión. Formato sugerido para COMPLETADAS:
