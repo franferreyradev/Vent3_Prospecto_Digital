@@ -4,7 +4,7 @@ import { InputHTMLAttributes, useId } from 'react';
 
 interface InputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> {
   label: string;
-  type: 'text' | 'email' | 'password' | 'file';
+  type: 'text' | 'email' | 'password' | 'file' | 'date';
   error?: string;
   helperText?: string;
 }
