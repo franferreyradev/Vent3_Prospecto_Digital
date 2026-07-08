@@ -7,17 +7,17 @@
 
 ## ESTADO ACTUAL
 
-**Tarea en progreso:** Ninguna — T19 completada.
-**Bloqueantes activos:** Ninguno. `fix/get-db-commit-on-httpexception` mergeado a `main` (ver Notas de sesión T19) — confirmado por el usuario 95/97 tests en verde, mismos 2 preexistentes de `test_auth.py` desde T9, sin regresión. Ver también nota T17 sobre gap de endpoints de prospectos vs PLAN.md (resuelto, ampliado scope de T21). Pendiente abierto de T18: datos de QA (`EXP-QA-001`/`EXP-QA-002`) en la DB de producción de Railway, sin resolver.
-**Última sesión:** 8 de julio de 2026 — T19 login del admin completado + bugfix de lockout mergeado.
+**Tarea en progreso:** Ninguna — T20 completada.
+**Bloqueantes activos:** Ninguno. Suite backend confirmado 95/97 verdes tras T20 (T20 no tocó `apps/api`), mismos 2 preexistentes de `test_auth.py` desde T9, sin regresión. Pendientes abiertos: (1) datos de QA (`EXP-QA-001`/`EXP-QA-002`) en la DB de producción de Railway, sin resolver desde T18; (2) T21 trae su propio gap de backend (`GET /api/prospectos` listado filtrado + `GET /api/prospectos/{id}/download-url`), ya documentado en PLAN.md §T21, no es nuevo.
+**Última sesión:** 8 de julio de 2026 — T20 dashboard de productos completado.
 
 ---
 
 ## PRÓXIMA TAREA
 
-**T20 — Dashboard de productos**
+**T21 — Detalle de producto y gestión de prospectos**
 
-Referencia completa en `docs/PLAN.md § Sección 3 · T20`.
+Referencia completa en `docs/PLAN.md § Sección 3 · T21`. Incluye el gap de backend de endpoints de prospectos (`GET /api/prospectos`, `GET /api/prospectos/{id}/download-url`), scopeado ahí desde T17.
 
 ---
 
@@ -53,7 +53,7 @@ Referencia completa en `docs/PLAN.md § Sección 3 · T20`.
 ### FASE 3 — Panel admin
 
 - [x] **T19** — Login del admin ✅ · 8 jul 2026
-- [ ] **T20** — Dashboard de productos
+- [x] **T20** — Dashboard de productos ✅ · 8 jul 2026
 - [ ] **T21** — Detalle de producto y gestión de prospectos
 - [ ] **T22** — Vista de audit log
 
@@ -92,6 +92,7 @@ Referencia completa en `docs/PLAN.md § Sección 3 · T20`.
 - [x] **T17** — Cliente HTTP del frontend ✅ · 3 jul 2026
 - [x] **T18** — Página pública de prospecto (resolver del QR) ✅ · 3 jul 2026
 - [x] **T19** — Login del admin ✅ · 8 jul 2026
+- [x] **T20** — Dashboard de productos ✅ · 8 jul 2026
 
 ---
 
@@ -331,6 +332,18 @@ Referencia completa en `docs/PLAN.md § Sección 3 · T20`.
 **[T19 · 8 jul 2026]** `npm run build` (producción) completó sin errores — requiere el backend local corriendo en `:8000` porque el `prebuild` hook de T18 regenera `packages/contracts/src/api.ts` contra `openapi.json` real. Ruta `/admin/login` generada como estática (`○`), no dinámica.
 
 **[T19 · 8 jul 2026]** Suite de backend: pendiente de confirmación del usuario en su máquina con `TEST_DATABASE_URL` cargada. En el shell del agente (sin esa variable, mismo gotcha de sesiones anteriores): `26 passed, 71 skipped`, tanto en `main` como en la rama del fix — sin diferencias, ningún test no-skipped ejercita el flujo de lockout end-to-end contra la DB real. **Este es el chequeo importante que falta**: confirmar que el fix no rompe nada en los 71 tests que sí tocan DB.
+
+**[T20 · 8 jul 2026]** `apps/web/components/admin/ProductTable.tsx` (Client Component, solo por consistencia con `Table` que ya es cliente — sin estado propio) y `apps/web/app/admin/page.tsx` (Client Component completo, mismo criterio de T19) creados sin tocar `listarProductos()` de `api-client.ts` (T9/T17). Columna "Prospecto" usa el booleano `tiene_prospecto` tal cual expone el backend (no hay estado rico de vigencia en el listado — eso es T21). Paginación y filtros resueltos con estado local + `useEffect`, sin componente `Pagination` ni `ProductFilters` separados (regla de CLAUDE.md contra abstracciones de un solo uso). Debounce de búsqueda con `setTimeout`/`clearTimeout` a mano, sin dependencias nuevas.
+
+**[T20 · 8 jul 2026]** GOTCHA de tipos en `api-client.ts`: el alias local `ProductoListResponse` exportado ahí en realidad apunta a `components['schemas']['PaginatedResponse_ProductoListResponse_']` (el wrapper paginado), no al item individual. El tipo de cada fila (`id`, `codigo_interno`, `nombre_comercial`, `forma_farmaceutica`, `presentacion_cantidad`, `canal`, `estado`, `tiene_prospecto`) vive en `components['schemas']['ProductoListResponse']` de `@vent3/contracts` directamente. `ProductTable.tsx` importa `components` de `@vent3/contracts` aparte para tipar el item — no reexportar ni renombrar nada en `api-client.ts`, confirmar con el usuario antes de tocar esa firma si esto genera confusión en tareas futuras (T21 en adelante).
+
+**[T20 · 8 jul 2026]** [BLOQUEANTE evitado] `npm run build` regenera `packages/contracts/src/api.ts` vía `prebuild` contra la API en `:8000` — al correrlo se pisó el `.next` que estaba usando el `next dev` del usuario, corrompiendo un chunk (`Cannot find module './592.js'`) y devolviendo 500 en `/admin/login`. Se resolvió matando el proceso `next dev` viejo y levantando uno limpio (`npm run dev`), sin tocar código. Nota para sesiones futuras: correr `npm run build` mientras hay un `next dev` activo en paralelo puede romper sus artefactos — confirmar con el usuario antes de buildear si su dev server ya está corriendo (regla global del usuario es "Never build after changes", en tensión directa con el criterio de done de T20 que pide correr el build; se preguntó y se priorizó el criterio de done para esta tarea puntual).
+
+**[T20 · 8 jul 2026]** DB local (`vent3-db`, puerto 5433) ya tenía volumen real de sobra para probar filtros y paginación sin sembrar nada nuevo: **167 productos** migrados desde T14 (95 farmacia-activo, 57 farmacia-inactivo, 12 licitación-activo, 3 licitación-inactivo, con nombres repetidos como "ASPIRINA VENT3" en múltiples presentaciones/códigos internos) → 4 páginas con `limit=50`. No hizo falta pedir datos adicionales al usuario.
+
+**[T20 · 8 jul 2026]** Verificación con Playwright headless (mismo patrón T16-T19) contra `/admin`, logueado con credenciales reales pasadas por el usuario por chat (no se leyó `.env`): tabla renderiza 50 filas reales tras el fetch inicial (ojo: el primer `waitForSelector('table tbody tr')` puede matchear el skeleton de loading de `Table.tsx`, 3 filas — hace falta esperar el debounce de 400ms + el round-trip antes de contar filas de verdad). Filtro `estado=inactivo` → todas las filas devueltas muestran Badge "Inactivo". Filtro `canal=licitacion` → 15 filas (coincide con el total real de productos de licitación). Búsqueda "ASPIRINA" → todos los nombres devueltos la contienen. Paginación: "Anterior" deshabilitado en página 1, "Siguiente" avanza de "Página 1 de 4" a "Página 2 de 4", "Anterior" vuelve a "Página 1 de 4". Click en una fila navega a `/admin/productos/{uuid}` (404 esperado, T21 no existe todavía). `npm run build` completó sin errores de tipos ni compilación.
+
+**[T20 · 8 jul 2026]** Suite de backend confirmado por el usuario en su máquina (`set -a; source .env; set +a; uv run pytest -v`): **95 passed, 2 failed** (los mismos 2 preexistentes de `test_auth.py` desde T9, sin cambios) — T20 no tocó `apps/api`, sin regresiones.
 
 ---
 > Actualizar este archivo al finalizar cada sesión. Formato sugerido para COMPLETADAS:
