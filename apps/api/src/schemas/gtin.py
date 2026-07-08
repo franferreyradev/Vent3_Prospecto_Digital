@@ -16,3 +16,9 @@ class GtinRegistroResponse(BaseModel):
     qr_generado: bool
     validado_gs1: bool
     created_at: datetime
+
+
+class GtinUpdateRequest(BaseModel):
+    url_digital_link: str | None = None
+    qr_generado: bool | None = None
+    validado_gs1: bool | None = None
