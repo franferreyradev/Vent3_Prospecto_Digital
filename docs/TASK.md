@@ -7,17 +7,17 @@
 
 ## ESTADO ACTUAL
 
-**Tarea en progreso:** Ninguna — T23 completada.
-**Bloqueantes activos:** Ninguno. T23 es 100% frontend estático, no tocó `apps/api` — suite de backend sigue en 101/103 verdes (sin necesidad de re-correrlo). Pendiente abierto: datos de contacto (email/teléfono/dirección) en `app/(public)/layout.tsx` son placeholders — reemplazar por los reales antes de producción.
-**Última sesión:** 8 de julio de 2026 — T23 páginas institucionales completada.
+**Tarea en progreso:** Ninguna — T24 completada.
+**Bloqueantes activos:** Ninguno. T24 es 100% frontend estático, no tocó `apps/api` — suite de backend sigue en 101/103 verdes (sin necesidad de re-correrlo, no se tocó código de backend). Pendientes abiertos arrastrados de T23: datos de contacto placeholders, azul corporativo pendiente de confirmar con marca; nuevo pendiente de T24: imagen de Open Graph (`openGraph.images`) no seteada, falta asset real de marketing.
+**Última sesión:** 8 de julio de 2026 — T24 SEO, metadata y accesibilidad completada.
 
 ---
 
 ## PRÓXIMA TAREA
 
-**T24 — SEO, metadata y accesibilidad**
+**T25 — Generación de QRs en portal GS1 Argentina**
 
-Referencia completa en `docs/PLAN.md § Sección 3 · T24`. Depende de T23 (páginas institucionales), ya completada.
+Referencia completa en `docs/PLAN.md § Sección 3 · T25`. Tarea operativa, sin código — ingresar al portal GS1, generar QR Datamatrix con dominio propio para cada GTIN activo. Depende de T18 (resolver del QR), ya completada.
 
 ---
 
@@ -60,7 +60,7 @@ Referencia completa en `docs/PLAN.md § Sección 3 · T24`. Depende de T23 (pág
 ### FASE 4 — Sitio institucional
 
 - [x] **T23** — Páginas institucionales (home, nosotros, productos, contacto) ✅ · 8 jul 2026
-- [ ] **T24** — SEO, metadata y accesibilidad
+- [x] **T24** — SEO, metadata y accesibilidad ✅ · 8 jul 2026
 
 ### FASE 5 — Operativa GS1 y entrega
 
@@ -96,6 +96,7 @@ Referencia completa en `docs/PLAN.md § Sección 3 · T24`. Depende de T23 (pág
 - [x] **T21** — Detalle de producto y gestión de prospectos ✅ · 8 jul 2026
 - [x] **T22** — Vista de audit log ✅ · 8 jul 2026
 - [x] **T23** — Páginas institucionales (home, nosotros, productos, contacto) ✅ · 8 jul 2026
+- [x] **T24** — SEO, metadata y accesibilidad ✅ · 8 jul 2026
 
 ---
 
@@ -387,6 +388,24 @@ Referencia completa en `docs/PLAN.md § Sección 3 · T24`. Depende de T23 (pág
 **[T23 · 8 jul 2026]** Suite de backend: T23 no tocó ningún archivo de `apps/api` (confirmado con `git status --short` antes de cerrar — solo aparecen archivos bajo `apps/web/`). No hizo falta re-correr pytest: sigue en 101/103 verdes confirmado en T21/T22, sin cambios de código de backend que puedan afectarlo.
 
 **[Post-T23 · 8 jul 2026] RESUELTO — pendiente de QA en producción, arrastrado desde T18.** Se investigó primero contra la DB real de Railway (`railway variables --service Postgres` para la `DATABASE_PUBLIC_URL`, solo lectura) antes de asumir cuál escenario aplicaba: los productos `ASPIRINA VENT3` (`A-01`, `A-04`) y sus GTIN (`02000000000015`/`02000000000046`) **son reales** — vienen del catálogo migrado en T14 y del correlativo GTIN que genera `scripts/migrar_excel.py` para los 167 productos (con `estado_gtin='en_desarrollo'`, `es_vigente=false` por default, igual que los otros 165). Lo ficticio agregado en T18 para poder probar en un celular real era solo: `es_vigente=true` en esos 2 GTIN, y 3 filas en `prospectos` (`EXP-QA-001`/`EXP-QA-002` ×2) con PDFs dummy de `w3.org` + sus 3 asociaciones en `producto_prospectos`. Confirmado con `audit_log` que estas filas nunca pasaron por la API (se habían insertado por SQL directo en T18) y que no existía ninguna otra fila real en `prospectos` (tabla completamente vacía salvo estas 3). Con confirmación explícita del usuario, se ejecutó en una transacción contra producción: `DELETE FROM producto_prospectos` (3 filas) + `DELETE FROM prospectos WHERE numero_expediente LIKE 'EXP-QA%'` (3 filas) + `UPDATE gtin_registro SET es_vigente = false` para esos 2 GTIN — dejando el producto y el GTIN placeholder reales intactos, en el mismo estado que el resto del catálogo, listos para cargar el prospecto verdadero cuando esté disponible. Verificado post-cambio contra `GET /api/internal/prospectos/by-gtin/{gtin}` real: ambos GTIN devuelven `"error":"no_encontrado"` (correcto, consistente con cualquier otro producto sin GTIN vigente todavía). Este pendiente queda cerrado — no hay más datos de prueba en la DB de producción.
+
+**[T24 · 8 jul 2026]** Decisiones tomadas antes de escribir código (confirmadas con el usuario): (Q1) sin imagen de Open Graph por ahora — no existe ningún asset de marketing en el proyecto, se omite `openGraph.images` en vez de usar un placeholder genérico, queda documentado como pendiente arriba en ESTADO ACTUAL. (Q2) `/dev/*` se bloquea únicamente vía `robots.txt` (`Disallow: /dev/`), sin excluirlo del build de producción — eso queda fuera de alcance de T24, no estaba en el criterio de done original.
+
+**[T24 · 8 jul 2026]** Creados `app/sitemap.ts` y `app/robots.ts` como Metadata File Conventions nativas de Next.js 14 (no `public/*.xml` a mano). Sitemap con las 4 rutas estáticas de T23 (`/`, `/nosotros`, `/productos`, `/contacto`); NO incluye `/01/[gtin]` (dinámica, no pensada para indexación) ni `/admin/*` ni `/dev/*`. Robots permite crawl general y bloquea explícitamente `/admin/` y `/dev/`, con referencia al sitemap. Verificado con `curl` contra el build de producción real (`next start`): ambos responden con contenido válido y las rutas esperadas.
+
+**[T24 · 8 jul 2026]** `metadataBase: new URL('https://www.vent3.com.ar')` agregado en `app/layout.tsx` — sin esto, las URLs relativas de `openGraph.url` que T23 ya había puesto en cada página institucional no se resolvían a absolutas (warning de build). Tras el cambio, `npm run build` corrió sin ningún warning de `metadataBase`.
+
+**[T24 · 8 jul 2026]** `generateMetadata()` de `app/01/[gtin]/page.tsx` (T18) ampliado: antes solo seteaba `title`, ahora agrega `description` y `openGraph` básico (title/description/type/url) usando el `nombre_comercial` ya resuelto por `resolverGtin()`. Se agregó también `robots: { index: false, follow: false }` en esta página — no estaba en el criterio de done explícito, pero es consistente con la decisión ya documentada de que esta ruta no está pensada para indexación de buscadores (contenido resuelto por QR físico, no por búsqueda). No se duplicó el round-trip al backend: `resolverGtin()` se sigue llamando una vez en `generateMetadata` y otra en el componente de página, pero Next.js dedupea automáticamente `fetch()` con la misma URL/options dentro del mismo request (Request Memoization) — confirmado que es el comportamiento esperado, no hace falta refactor para pasar el dato entre las dos funciones.
+
+**[T24 · 8 jul 2026]** Auditoría de accesibilidad con axe-core (Playwright + `@axe-core/playwright`, instalado puntualmente en el scratchpad de la sesión, no versionado) corrida contra el build de producción real (`next start`) sobre las 4 páginas institucionales + los 3 escenarios de `/01/[gtin]` (selector: GTIN `02000000000572` con prospecto público+profesional; único: GTIN `02000000001340`; error: GTIN `02000000001517`, sin prospecto activo — los 3 son datos reales ya existentes en la DB local de T18, no se sembraron datos nuevos). **Resultado: 0 violaciones en las 7 páginas**, con tags `wcag2a`/`wcag2aa`/`wcag21a`/`wcag21aa`. Verificación adicional de navegación por teclado (axe-core no detecta orden de tabulación ni foco visible): confirmado con Playwright que el foco es visible (`outline: auto`, default del navegador) en todos los elementos interactivos, el orden de tabulación es lógico (nav → contenido → footer) y no hay trampas de foco en el menú mobile ni en el selector de audiencia.
+
+**[T24 · 8 jul 2026]** Se agregó un skip-link ("Saltar al contenido principal") en `app/(public)/layout.tsx`, no estaba en el criterio de done explícito pero surgió de la propia verificación de teclado: con nav repetida en las 4 páginas institucionales, WCAG 2.4.1 Bypass Blocks (nivel A) lo pide. Implementado con la clase utilitaria `sr-only`/`focus:not-sr-only` de Tailwind (core, sin plugin adicional) — invisible hasta que recibe foco por teclado. `<main>` recibió `id="contenido-principal"` como target. Re-corrida la auditoría axe-core completa tras el cambio: sigue en 0 violaciones.
+
+**[T24 · 8 jul 2026]** Auditoría de contraste de la paleta `vent3-*` (cálculo de ratio WCAG real, no solo axe-core): `vent3-accent` (#E69138) sobre fondo blanco da 2.48:1 y `vent3-warning` (#F0A020) da 2.15:1 — ambos muy por debajo del mínimo 4.5:1 de AA para texto. Verificado con `rg` que ambos colores **solo se usan en `Badge.tsx`, consumido únicamente por el panel admin (`ProductTable.tsx`, `app/admin/productos/[id]/page.tsx`) y `/dev/*`** — fuera del alcance de T24 (páginas públicas). No se tocó la paleta corporativa (regla R3: son colores "a confirmar con identidad de marca" desde T15, no se cambian sin confirmar). Documentado acá como hallazgo para una futura tarea de accesibilidad del panel admin, no se abrió tarea nueva sin confirmar con el usuario.
+
+**[T24 · 8 jul 2026]** Lighthouse (SEO + Accessibility) corrido contra el build de producción real: `/` → **SEO 100, Accessibility 100**. `/01/02000000001340` (prospecto único) → **Accessibility 100**, **SEO 63** — el único audit que falla es `is-crawlable` ("Page is blocked from indexing"), esperado e intencional por el `robots: {index:false}` agregado arriba, no es un defecto. El resto de los audits de SEO (meta description, viewport, etc.) pasan limpios en ambas páginas.
+
+**[T24 · 8 jul 2026]** `npm run build` corrió contra el backend local levantado a propósito para esta sesión (`uv run uvicorn src.main:app --host 0.0.0.0 --port 8000`, la DB `vent3-db` ya estaba arriba de una sesión anterior) — no había ningún `next dev` corriendo en paralelo al iniciar la sesión (confirmado con `ps aux` antes de buildear). Build completó sin errores ni warnings. T24 no tocó ningún archivo de `apps/api` (confirmado con `git status --short` antes de cerrar) — no hizo falta re-correr pytest, sigue en 101/103 verdes confirmado en sesiones anteriores. Todos los procesos levantados para esta verificación (`next start`, `uvicorn`) se detuvieron al cerrar la sesión.
 
 ---
 > Actualizar este archivo al finalizar cada sesión. Formato sugerido para COMPLETADAS:

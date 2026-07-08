@@ -11,6 +11,12 @@ const links = [
 export default function PublicLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col">
+      <a
+        href="#contenido-principal"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-vent3-primary focus:px-4 focus:py-2 focus:text-vent3-bg"
+      >
+        Saltar al contenido principal
+      </a>
       <header className="relative border-b border-vent3-border bg-vent3-bg">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-8">
           <Link href="/" className="font-sans text-xl font-bold text-vent3-primary">
@@ -31,7 +37,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
         </div>
       </header>
 
-      <main className="flex-1">{children}</main>
+      <main id="contenido-principal" className="flex-1">{children}</main>
 
       <footer className="border-t border-vent3-border bg-vent3-surface">
         <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-8 text-sm text-vent3-text-secondary sm:px-8">

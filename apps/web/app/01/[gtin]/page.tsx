@@ -33,9 +33,28 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     return { title: 'Prospecto no encontrado — Vent3' };
   }
 
+  // fetch() con la misma URL/options se dedupea automáticamente dentro del
+  // mismo request (Request Memoization de Next.js) — no duplica el round-trip
+  // con el llamado que hace ProspectoPage más abajo.
   const data = await resolverGtin(params.gtin);
+
+  if (!data.producto) {
+    return { title: 'Prospecto no encontrado — Vent3' };
+  }
+
+  const title = `${data.producto.nombre_comercial} — Prospecto Vent3`;
+  const description = `Prospecto digital certificado ANMAT de ${data.producto.nombre_comercial}, Laboratorio Vent3.`;
+
   return {
-    title: data.producto ? `${data.producto.nombre_comercial} — Prospecto Vent3` : 'Prospecto no encontrado — Vent3',
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      type: 'website',
+      url: `/01/${params.gtin}`,
+    },
+    robots: { index: false, follow: false },
   };
 }
 

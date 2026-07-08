@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import '../styles/globals.css';
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://www.vent3.com.ar'),
   title: 'Laboratorio Vent3',
 };
 
