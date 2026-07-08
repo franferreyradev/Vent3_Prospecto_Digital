@@ -10,6 +10,7 @@ import {
   activarProspecto,
   obtenerUrlDescargaProspecto,
 } from '../../../../lib/api-client';
+import GtinTable from '../../../../components/admin/GtinTable';
 import UploadProspecto from '../../../../components/admin/UploadProspecto';
 import Badge from '../../../../components/ui/Badge';
 import Button from '../../../../components/ui/Button';
@@ -17,6 +18,7 @@ import Toast from '../../../../components/ui/Toast';
 
 type Producto = components['schemas']['ProductoDetalleResponse'];
 type Prospecto = components['schemas']['ProspectoResponse'];
+type GtinRegistro = components['schemas']['GtinRegistroResponse'];
 
 const ESTADO_VIGENCIA_BADGE: Record<string, { variant: 'success' | 'warning' | 'neutral'; label: string }> = {
   vigente: { variant: 'success', label: 'Vigente' },
@@ -84,6 +86,20 @@ export default function ProductoDetallePage() {
     }
   }
 
+  function handleGtinActualizado(gtinActualizado: GtinRegistro) {
+    setProducto((prev) =>
+      prev
+        ? {
+            ...prev,
+            gtin_registros: prev.gtin_registros.map((g) =>
+              g.id === gtinActualizado.id ? gtinActualizado : g,
+            ),
+          }
+        : prev,
+    );
+    setToast({ type: 'success', message: 'GTIN actualizado' });
+  }
+
   async function handleDescargar(prospectoId: string) {
     try {
       const { url } = await obtenerUrlDescargaProspecto(prospectoId);
@@ -134,6 +150,11 @@ export default function ProductoDetallePage() {
             </li>
           ))}
         </ul>
+      </div>
+
+      <div className="mb-8">
+        <h2 className="mb-2 text-sm font-medium text-vent3-text-primary">GTINs</h2>
+        <GtinTable gtinRegistros={producto.gtin_registros} onActualizado={handleGtinActualizado} />
       </div>
 
       <div className="mb-4 flex items-center justify-between">

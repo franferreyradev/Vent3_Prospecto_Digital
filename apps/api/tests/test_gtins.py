@@ -141,6 +141,22 @@ async def test_actualizar_gtin_sin_autenticacion_retorna_401(client: AsyncClient
     assert response.status_code == 401
 
 
+# ── TC1b: GET /api/productos/{id} expone gtin_registros ───────────────────
+
+
+@pytest.mark.asyncio
+async def test_obtener_producto_expone_gtin_registros_asociados(
+    auth_client: AsyncClient, gtin_seed
+) -> None:
+    response = await auth_client.get(f"/api/productos/{gtin_seed['producto_id']}")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body["gtin_registros"]) == 1
+    assert body["gtin_registros"][0]["gtin"] == gtin_seed["gtin"]
+    assert body["gtin_registros"][0]["qr_generado"] is False
+
+
 # ── TC2: GTIN inexistente → 404 ────────────────────────────────────────────
 
 
