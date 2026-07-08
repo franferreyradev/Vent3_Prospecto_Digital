@@ -7,17 +7,17 @@
 
 ## ESTADO ACTUAL
 
-**Tarea en progreso:** Ninguna — T20 completada.
-**Bloqueantes activos:** Ninguno. Suite backend confirmado 95/97 verdes tras T20 (T20 no tocó `apps/api`), mismos 2 preexistentes de `test_auth.py` desde T9, sin regresión. Pendientes abiertos: (1) datos de QA (`EXP-QA-001`/`EXP-QA-002`) en la DB de producción de Railway, sin resolver desde T18; (2) T21 trae su propio gap de backend (`GET /api/prospectos` listado filtrado + `GET /api/prospectos/{id}/download-url`), ya documentado en PLAN.md §T21, no es nuevo.
-**Última sesión:** 8 de julio de 2026 — T20 dashboard de productos completado.
+**Tarea en progreso:** Ninguna — T21 completada.
+**Bloqueantes activos:** Ninguno. Suite backend confirmado 101/103 verdes tras T21 (14 TCs nuevos en `test_prospectos.py`, todos verdes), mismos 2 preexistentes de `test_auth.py` desde T9, sin regresión. Pendientes abiertos: (1) datos de QA (`EXP-QA-001`/`EXP-QA-002`) en la DB de producción de Railway, sin resolver desde T18.
+**Última sesión:** 8 de julio de 2026 — T21 detalle de producto y gestión de prospectos completado.
 
 ---
 
 ## PRÓXIMA TAREA
 
-**T21 — Detalle de producto y gestión de prospectos**
+**T22 — Vista de audit log**
 
-Referencia completa en `docs/PLAN.md § Sección 3 · T21`. Incluye el gap de backend de endpoints de prospectos (`GET /api/prospectos`, `GET /api/prospectos/{id}/download-url`), scopeado ahí desde T17.
+Referencia completa en `docs/PLAN.md § Sección 3 · T22`. Ruta `apps/web/app/admin/auditoria/page.tsx`, listado paginado con filtros por tabla/usuario/rango de fechas, consume `listarAuditLog()` de `api-client.ts` (ya existe desde T13/T17).
 
 ---
 
@@ -54,7 +54,7 @@ Referencia completa en `docs/PLAN.md § Sección 3 · T21`. Incluye el gap de ba
 
 - [x] **T19** — Login del admin ✅ · 8 jul 2026
 - [x] **T20** — Dashboard de productos ✅ · 8 jul 2026
-- [ ] **T21** — Detalle de producto y gestión de prospectos
+- [x] **T21** — Detalle de producto y gestión de prospectos ✅ · 8 jul 2026
 - [ ] **T22** — Vista de audit log
 
 ### FASE 4 — Sitio institucional
@@ -93,6 +93,7 @@ Referencia completa en `docs/PLAN.md § Sección 3 · T21`. Incluye el gap de ba
 - [x] **T18** — Página pública de prospecto (resolver del QR) ✅ · 3 jul 2026
 - [x] **T19** — Login del admin ✅ · 8 jul 2026
 - [x] **T20** — Dashboard de productos ✅ · 8 jul 2026
+- [x] **T21** — Detalle de producto y gestión de prospectos ✅ · 8 jul 2026
 
 ---
 
@@ -344,6 +345,16 @@ Referencia completa en `docs/PLAN.md § Sección 3 · T21`. Incluye el gap de ba
 **[T20 · 8 jul 2026]** Verificación con Playwright headless (mismo patrón T16-T19) contra `/admin`, logueado con credenciales reales pasadas por el usuario por chat (no se leyó `.env`): tabla renderiza 50 filas reales tras el fetch inicial (ojo: el primer `waitForSelector('table tbody tr')` puede matchear el skeleton de loading de `Table.tsx`, 3 filas — hace falta esperar el debounce de 400ms + el round-trip antes de contar filas de verdad). Filtro `estado=inactivo` → todas las filas devueltas muestran Badge "Inactivo". Filtro `canal=licitacion` → 15 filas (coincide con el total real de productos de licitación). Búsqueda "ASPIRINA" → todos los nombres devueltos la contienen. Paginación: "Anterior" deshabilitado en página 1, "Siguiente" avanza de "Página 1 de 4" a "Página 2 de 4", "Anterior" vuelve a "Página 1 de 4". Click en una fila navega a `/admin/productos/{uuid}` (404 esperado, T21 no existe todavía). `npm run build` completó sin errores de tipos ni compilación.
 
 **[T20 · 8 jul 2026]** Suite de backend confirmado por el usuario en su máquina (`set -a; source .env; set +a; uv run pytest -v`): **95 passed, 2 failed** (los mismos 2 preexistentes de `test_auth.py` desde T9, sin cambios) — T20 no tocó `apps/api`, sin regresiones.
+
+**[T21 · 8 jul 2026]** Backend: `ProspectosRepository.listar()` agregado (JOIN condicional contra `producto_prospectos` solo cuando viene `producto_id`, sin tocar `get_todos_por_producto()` ni `activar_prospecto()`). `ProspectosService.listar()`/`.obtener_url_descarga()` agregados como passthrough puro. Router: `GET /api/prospectos` (paginado, filtros `producto_id`/`estado_vigencia`) y `GET /api/prospectos/{id}/download-url` (deriva key de R2 con `removeprefix`, reusa `StorageService.generar_url_firmada()` sin tocarlo). Schema nuevo `ProspectoDownloadUrlResponse{ url: str }`.
+
+**[T21 · 8 jul 2026] GOTCHA de arquitectura confirmado (no es bug):** un prospecto recién subido (`en_revision`) **no tiene fila en `producto_prospectos`** — esa tabla puente solo se crea al activar (`activar_prospecto()`). Por diseño, filtrar `GET /api/prospectos?producto_id=X&estado_vigencia=en_revision` devuelve vacío aunque exista un prospecto en revisión para ese producto recién subido. Esto es correcto: el frontend no necesita el listado para mostrar el prospecto recién subido, porque ya tiene su `id` en la respuesta del propio `POST /api/prospectos` (`subirProspecto()`), y lo usa directo para ofrecer "activar". Un test inicial (`TC11`) asumía mal esto y se corrigió antes de cerrar — quedó documentado acá para no repetir el error en tareas futuras que toquen `producto_prospectos`.
+
+**[T21 · 8 jul 2026]** Suite de backend corrido en esta sesión con `DATABASE_URL` real (`set -a; source .env; set +a; uv run pytest -v`), 3 corridas seguidas para descartar flakiness de test-order: **101 passed, 2 failed** estable, los mismos 2 preexistentes de `test_auth.py` desde T9. Los 14 TCs nuevos de `test_prospectos.py` (TC9-TC14, cubren listado sin filtros, por `producto_id`, por `estado_vigencia`, download-url válido/404, y 401 sin sesión) en verde. Nota: en una corrida aislada combinada con otros módulos apareció 1 falla espuria en `test_audit_router.py` que no se repitió en corridas subsiguientes — confirmado como flakiness de orden de tests preexistente en el suite, no causado por T21 (se verificó corriendo el suite completo en `main` sin los cambios de T21 y el mismo patrón de 2 fallos apareció, sin el tercero).
+
+**[T21 · 8 jul 2026]** Frontend: `app/admin/productos/[id]/page.tsx` (Client Component) + `components/admin/UploadProspecto.tsx` (Client Component) creados. `api-client.ts` ganó `listarProspectos()` y `obtenerUrlDescargaProspecto()` siguiendo el patrón exacto de `listarProductos()`/`listarAuditLog()`, sin tocar `subirProspecto()` ni `activarProspecto()`. El flujo de upload no es atómico: `UploadProspecto` sube el PDF y devuelve el `id`, la página pregunta con `window.confirm()` si activarlo ahora y llama `activarProspecto()` por separado — dos acciones de API distintas, una sola interacción de usuario.
+
+**[T21 · 8 jul 2026]** Verificación con Playwright headless (mismo patrón T16-T20) contra `/admin/productos/{id}` con un producto real (`ASPIRINA VENT3`, sin prospecto previo): ficha y listado renderizan, upload de PDF de prueba pasa a `en_revision`, confirmación de activación automática deja el badge en "Vigente", click en "Descargar" dispara la URL firmada real de R2 (popup abierto sin error), toggle activar/desactivar producto responde. Dato de prueba (`EXP-T21-VERIFY`) limpiado de la DB local tras la verificación para no contaminar el catálogo real. `npm run build` completó sin errores de tipos ni compilación — se corrió con el `next dev` del usuario activo en paralelo (confirmado con el usuario antes de correrlo, por el gotcha de T20); el `next dev` se verificó sano después (200 en `/admin/productos/{id}`), sin necesidad de reiniciarlo esta vez.
 
 ---
 > Actualizar este archivo al finalizar cada sesión. Formato sugerido para COMPLETADAS:

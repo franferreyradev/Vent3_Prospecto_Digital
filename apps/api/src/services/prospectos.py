@@ -4,6 +4,7 @@ from fastapi import HTTPException, UploadFile
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.config import settings
 from src.models.prospecto import Prospecto
 from src.repositories.productos import ProductosRepository
 from src.repositories.prospectos import ProspectosRepository
@@ -19,6 +20,24 @@ class ProspectosService:
         self.productos_repo = ProductosRepository(session)
         self.auditoria = AuditoriaService(session)
         self.storage = StorageService()
+
+    async def listar(
+        self,
+        producto_id: UUID | None,
+        estado_vigencia: str | None,
+        page: int,
+        limit: int,
+    ) -> tuple[list[Prospecto], int]:
+        offset = (page - 1) * limit
+        return await self.repo.listar(producto_id, estado_vigencia, offset, limit)
+
+    async def obtener_url_descarga(self, prospecto_id: UUID) -> str:
+        prospecto = await self.repo.get_by_id(prospecto_id)
+        if prospecto is None:
+            raise HTTPException(status_code=404, detail="Prospecto no encontrado")
+
+        key = prospecto.url_archivo.removeprefix(f"{settings.R2_PUBLIC_URL}/")
+        return await self.storage.generar_url_firmada(key)
 
     async def subir(
         self,
