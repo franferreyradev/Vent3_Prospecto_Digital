@@ -4,6 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
+from src.schemas.gtin import GtinRegistroResponse
+
 
 class PrincipioActivoEnProducto(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -30,6 +32,7 @@ class ProductoListResponse(BaseModel):
 
 class ProductoDetalleResponse(ProductoListResponse):
     principios: list[PrincipioActivoEnProducto]
+    gtin_registros: list[GtinRegistroResponse]
     created_at: datetime
     updated_at: datetime
 

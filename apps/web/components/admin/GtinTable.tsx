@@ -1,0 +1,166 @@
+'use client';
+
+import type { components } from '@vent3/contracts';
+import { useState } from 'react';
+import { actualizarGtin } from '../../lib/api-client';
+import Badge from '../ui/Badge';
+import Button from '../ui/Button';
+import Input from '../ui/Input';
+
+type GtinRegistro = components['schemas']['GtinRegistroResponse'];
+
+interface GtinTableProps {
+  gtinRegistros: GtinRegistro[];
+  onActualizado: (gtin: GtinRegistro) => void;
+}
+
+export default function GtinTable({ gtinRegistros, onActualizado }: GtinTableProps) {
+  const [editandoId, setEditandoId] = useState<string | null>(null);
+  const [urlDigitalLink, setUrlDigitalLink] = useState('');
+  const [qrGenerado, setQrGenerado] = useState(false);
+  const [validadoGs1, setValidadoGs1] = useState(false);
+  const [error, setError] = useState('');
+  const [guardando, setGuardando] = useState(false);
+
+  function handleEditar(gtin: GtinRegistro) {
+    setEditandoId(gtin.id);
+    setUrlDigitalLink(gtin.url_digital_link ?? '');
+    setQrGenerado(gtin.qr_generado);
+    setValidadoGs1(gtin.validado_gs1);
+    setError('');
+  }
+
+  function handleCancelar() {
+    setEditandoId(null);
+    setError('');
+  }
+
+  async function handleGuardar(id: string) {
+    setError('');
+    setGuardando(true);
+    try {
+      const actualizado = await actualizarGtin(id, {
+        url_digital_link: urlDigitalLink || null,
+        qr_generado: qrGenerado,
+        validado_gs1: validadoGs1,
+      });
+      onActualizado(actualizado);
+      setEditandoId(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al guardar el GTIN');
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  if (gtinRegistros.length === 0) {
+    return <p className="text-sm text-vent3-text-secondary">Este producto no tiene GTINs registrados.</p>;
+  }
+
+  return (
+    <table className="w-full border-collapse text-left">
+      <thead>
+        <tr className="border-b border-vent3-border">
+          <th className="px-4 py-2 text-sm font-medium text-vent3-text-secondary">GTIN</th>
+          <th className="px-4 py-2 text-sm font-medium text-vent3-text-secondary">Vigente</th>
+          <th className="px-4 py-2 text-sm font-medium text-vent3-text-secondary">Digital Link</th>
+          <th className="px-4 py-2 text-sm font-medium text-vent3-text-secondary">QR generado</th>
+          <th className="px-4 py-2 text-sm font-medium text-vent3-text-secondary">Validado GS1</th>
+          <th className="px-4 py-2 text-sm font-medium text-vent3-text-secondary" />
+        </tr>
+      </thead>
+      <tbody>
+        {gtinRegistros.map((gtin) => {
+          const enEdicion = editandoId === gtin.id;
+
+          return (
+            <tr key={gtin.id} className="border-b border-vent3-border align-top">
+              <td className="px-4 py-3 font-mono text-sm text-vent3-text-primary">{gtin.gtin}</td>
+              <td className="px-4 py-3">
+                <Badge
+                  variant={gtin.es_vigente ? 'success' : 'neutral'}
+                  label={gtin.es_vigente ? 'Sí' : 'No'}
+                />
+              </td>
+
+              {enEdicion ? (
+                <>
+                  <td className="px-4 py-3">
+                    <Input
+                      label="URL Digital Link"
+                      type="text"
+                      value={urlDigitalLink}
+                      onChange={(e) => setUrlDigitalLink(e.target.value)}
+                      placeholder="https://www.vent3.com.ar/01/..."
+                    />
+                  </td>
+                  <td className="px-4 py-3">
+                    <label className="flex items-center gap-2 text-sm text-vent3-text-primary">
+                      <input
+                        type="checkbox"
+                        checked={qrGenerado}
+                        onChange={(e) => setQrGenerado(e.target.checked)}
+                      />
+                      Generado
+                    </label>
+                  </td>
+                  <td className="px-4 py-3">
+                    <label className="flex items-center gap-2 text-sm text-vent3-text-primary">
+                      <input
+                        type="checkbox"
+                        checked={validadoGs1}
+                        onChange={(e) => setValidadoGs1(e.target.checked)}
+                      />
+                      Validado
+                    </label>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-col gap-2">
+                      {error && <p className="text-sm text-vent3-danger">{error}</p>}
+                      <div className="flex gap-2">
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          loading={guardando}
+                          onClick={() => handleGuardar(gtin.id)}
+                        >
+                          Guardar
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={handleCancelar}>
+                          Cancelar
+                        </Button>
+                      </div>
+                    </div>
+                  </td>
+                </>
+              ) : (
+                <>
+                  <td className="px-4 py-3 text-sm text-vent3-text-secondary">
+                    {gtin.url_digital_link ?? '—'}
+                  </td>
+                  <td className="px-4 py-3">
+                    <Badge
+                      variant={gtin.qr_generado ? 'success' : 'neutral'}
+                      label={gtin.qr_generado ? 'Sí' : 'No'}
+                    />
+                  </td>
+                  <td className="px-4 py-3">
+                    <Badge
+                      variant={gtin.validado_gs1 ? 'success' : 'neutral'}
+                      label={gtin.validado_gs1 ? 'Sí' : 'No'}
+                    />
+                  </td>
+                  <td className="px-4 py-3">
+                    <Button variant="secondary" size="sm" onClick={() => handleEditar(gtin)}>
+                      Editar
+                    </Button>
+                  </td>
+                </>
+              )}
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}

@@ -8,6 +8,7 @@ from src.core.deps import require_admin
 from src.models.producto import Producto
 from src.models.usuario import Usuario
 from src.schemas.base import PaginatedResponse
+from src.schemas.gtin import GtinRegistroResponse
 from src.schemas.producto import (
     PrincipioActivoEnProducto,
     ProductoCambiarEstadoRequest,
@@ -31,6 +32,9 @@ def _to_detalle_response(producto: Producto) -> ProductoDetalleResponse:
         )
         for pp in producto.principios
     ]
+    gtin_registros = [
+        GtinRegistroResponse.model_validate(g) for g in producto.gtin_registros
+    ]
     return ProductoDetalleResponse(
         id=producto.id,
         codigo_interno=producto.codigo_interno,
@@ -41,6 +45,7 @@ def _to_detalle_response(producto: Producto) -> ProductoDetalleResponse:
         estado=producto.estado,
         tiene_prospecto=producto.tiene_prospecto,
         principios=principios,
+        gtin_registros=gtin_registros,
         created_at=producto.created_at,
         updated_at=producto.updated_at,
     )

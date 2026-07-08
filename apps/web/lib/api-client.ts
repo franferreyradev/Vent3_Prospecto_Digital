@@ -137,6 +137,21 @@ export async function cambiarEstadoProducto(
   });
 }
 
+// ── GTINs ─────────────────────────────────────────────────────────────
+
+type GtinRegistroResponse = components['schemas']['GtinRegistroResponse'];
+type GtinUpdateRequest = components['schemas']['GtinUpdateRequest'];
+
+export async function actualizarGtin(
+  id: string,
+  body: GtinUpdateRequest,
+): Promise<GtinRegistroResponse> {
+  return apiFetch<GtinRegistroResponse>(`/api/gtins/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
 // ── Prospectos ────────────────────────────────────────────────────────
 
 type ProspectoResponse = components['schemas']['ProspectoResponse'];

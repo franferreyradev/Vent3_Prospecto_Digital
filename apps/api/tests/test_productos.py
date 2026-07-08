@@ -248,6 +248,8 @@ async def test_obtener_producto_existente_retorna_200_con_detalle(
     assert body["id"] == str(producto_id)
     assert "principios" in body
     assert isinstance(body["principios"], list)
+    assert "gtin_registros" in body
+    assert isinstance(body["gtin_registros"], list)
 
 
 # ── TC7: detalle inexistente ──────────────────────────────────────────────
