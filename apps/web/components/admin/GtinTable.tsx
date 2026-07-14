@@ -16,6 +16,8 @@ interface GtinTableProps {
 
 export default function GtinTable({ gtinRegistros, onActualizado }: GtinTableProps) {
   const [editandoId, setEditandoId] = useState<string | null>(null);
+  const [numeroGtin, setNumeroGtin] = useState('');
+  const [gtinBloqueado, setGtinBloqueado] = useState(false);
   const [urlDigitalLink, setUrlDigitalLink] = useState('');
   const [qrGenerado, setQrGenerado] = useState(false);
   const [validadoGs1, setValidadoGs1] = useState(false);
@@ -24,6 +26,8 @@ export default function GtinTable({ gtinRegistros, onActualizado }: GtinTablePro
 
   function handleEditar(gtin: GtinRegistro) {
     setEditandoId(gtin.id);
+    setNumeroGtin(gtin.gtin);
+    setGtinBloqueado(gtin.qr_generado);
     setUrlDigitalLink(gtin.url_digital_link ?? '');
     setQrGenerado(gtin.qr_generado);
     setValidadoGs1(gtin.validado_gs1);
@@ -40,6 +44,7 @@ export default function GtinTable({ gtinRegistros, onActualizado }: GtinTablePro
     setGuardando(true);
     try {
       const actualizado = await actualizarGtin(id, {
+        ...(gtinBloqueado ? {} : { gtin: numeroGtin }),
         url_digital_link: urlDigitalLink || null,
         qr_generado: qrGenerado,
         validado_gs1: validadoGs1,
@@ -75,7 +80,26 @@ export default function GtinTable({ gtinRegistros, onActualizado }: GtinTablePro
 
           return (
             <tr key={gtin.id} className="border-b border-vent3-border align-top">
-              <td className="px-4 py-3 font-mono text-sm text-vent3-text-primary">{gtin.gtin}</td>
+              <td className="px-4 py-3 font-mono text-sm text-vent3-text-primary">
+                {enEdicion && !gtinBloqueado ? (
+                  <Input
+                    label="GTIN"
+                    type="text"
+                    value={numeroGtin}
+                    onChange={(e) => setNumeroGtin(e.target.value)}
+                    placeholder="14 dígitos"
+                  />
+                ) : (
+                  <>
+                    {gtin.gtin}
+                    {enEdicion && gtinBloqueado && (
+                      <p className="mt-1 font-sans text-xs font-normal text-vent3-text-secondary">
+                        No se puede modificar: ya tiene QR generado.
+                      </p>
+                    )}
+                  </>
+                )}
+              </td>
               <td className="px-4 py-3">
                 <Badge
                   variant={gtin.es_vigente ? 'success' : 'neutral'}

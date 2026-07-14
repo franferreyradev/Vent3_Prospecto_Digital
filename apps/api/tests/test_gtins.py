@@ -130,6 +130,57 @@ async def gtin_seed():
     await engine.dispose()
 
 
+@pytest_asyncio.fixture
+async def gtin_seed_2():
+    """Segundo producto+GTIN independiente, para probar conflictos de unicidad."""
+    engine = create_async_engine(DATABASE_URL, poolclass=NullPool)
+    factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+    sufijo = uuid.uuid4().hex[:8]
+    producto_id = uuid.uuid4()
+    gtin_id = uuid.uuid4()
+    gtin_numero = f"029{uuid.uuid4().int % 10**11:011d}"
+
+    async with factory() as session:
+        await session.execute(
+            text(
+                "INSERT INTO productos "
+                "(id, codigo_interno, nombre_comercial, forma_farmaceutica, "
+                "presentacion_cantidad, canal, estado, tiene_prospecto, created_at, updated_at) "
+                "VALUES (:id, :codigo_interno, :nombre_comercial, 'comprimidos', "
+                "'x30', 'farmacia', 'activo', FALSE, NOW(), NOW())"
+            ),
+            {
+                "id": producto_id,
+                "codigo_interno": f"T25-B-{sufijo}",
+                "nombre_comercial": f"PRODUCTO GTIN TEST DOS {sufijo}",
+            },
+        )
+        await session.execute(
+            text(
+                "INSERT INTO gtin_registro "
+                "(id, producto_id, gtin, estado_gtin, es_vigente, url_digital_link, "
+                "qr_generado, validado_gs1, created_at) "
+                "VALUES (:id, :producto_id, :gtin, 'en_desarrollo', TRUE, NULL, "
+                "FALSE, FALSE, NOW())"
+            ),
+            {"id": gtin_id, "producto_id": producto_id, "gtin": gtin_numero},
+        )
+        await session.commit()
+
+    yield {"gtin_id": gtin_id, "producto_id": producto_id, "gtin": gtin_numero}
+
+    async with factory() as session:
+        await session.execute(
+            text("DELETE FROM gtin_registro WHERE id = :id"), {"id": gtin_id}
+        )
+        await session.execute(
+            text("DELETE FROM productos WHERE id = :id"), {"id": producto_id}
+        )
+        await session.commit()
+    await engine.dispose()
+
+
 # ── TC1: sin autenticación → 401 ──────────────────────────────────────────────
 
 
@@ -244,3 +295,99 @@ async def test_actualizar_gtin_setea_validado_gs1_y_audita(
     assert len(rows) == 1
     assert rows[0][0] == "validado_gs1"
     assert rows[0][1] == "True"
+
+
+# ── TC5: PATCH corrige el número de gtin mientras qr_generado=False ───────
+
+
+@pytest.mark.asyncio
+async def test_actualizar_gtin_corrige_numero_antes_de_generar_qr_y_audita(
+    auth_client: AsyncClient, gtin_seed
+) -> None:
+    gtin_id = gtin_seed["gtin_id"]
+    gtin_real = f"779{uuid.uuid4().int % 10**11:011d}"
+
+    response = await auth_client.patch(
+        f"/api/gtins/{gtin_id}", json={"gtin": gtin_real}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["gtin"] == gtin_real
+
+    engine = create_async_engine(DATABASE_URL, poolclass=NullPool)
+    try:
+        factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+        async with factory() as session:
+            result = await session.execute(
+                text(
+                    "SELECT campo_modificado, valor_anterior, valor_nuevo FROM audit_log "
+                    "WHERE registro_id = :id AND tabla_afectada = 'gtin_registro' "
+                    "AND campo_modificado = 'gtin'"
+                ),
+                {"id": str(gtin_id)},
+            )
+            rows = result.fetchall()
+    finally:
+        await engine.dispose()
+
+    assert len(rows) == 1
+    assert rows[0][1] == gtin_seed["gtin"]
+    assert rows[0][2] == gtin_real
+
+
+# ── TC6: PATCH rechaza modificar el gtin si el QR ya fue generado ─────────
+
+
+@pytest.mark.asyncio
+async def test_actualizar_gtin_con_qr_generado_rechaza_cambio_de_numero(
+    auth_client: AsyncClient, gtin_seed
+) -> None:
+    gtin_id = gtin_seed["gtin_id"]
+
+    # Primero se marca qr_generado=True (flujo real de T25).
+    marcar = await auth_client.patch(f"/api/gtins/{gtin_id}", json={"qr_generado": True})
+    assert marcar.status_code == 200
+
+    otro_numero = f"779{uuid.uuid4().int % 10**11:011d}"
+    response = await auth_client.patch(f"/api/gtins/{gtin_id}", json={"gtin": otro_numero})
+
+    assert response.status_code == 409
+
+    engine = create_async_engine(DATABASE_URL, poolclass=NullPool)
+    try:
+        factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+        async with factory() as session:
+            result = await session.execute(
+                text("SELECT gtin FROM gtin_registro WHERE id = :id"), {"id": str(gtin_id)}
+            )
+            gtin_actual = result.scalar_one()
+    finally:
+        await engine.dispose()
+
+    assert gtin_actual == gtin_seed["gtin"]
+
+
+# ── TC7: PATCH rechaza gtin duplicado de otro producto ─────────────────────
+
+
+@pytest.mark.asyncio
+async def test_actualizar_gtin_duplicado_retorna_409(
+    auth_client: AsyncClient, gtin_seed, gtin_seed_2
+) -> None:
+    response = await auth_client.patch(
+        f"/api/gtins/{gtin_seed['gtin_id']}", json={"gtin": gtin_seed_2["gtin"]}
+    )
+    assert response.status_code == 409
+
+
+# ── TC8: PATCH rechaza formato de gtin inválido ────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_actualizar_gtin_formato_invalido_retorna_422(
+    auth_client: AsyncClient, gtin_seed
+) -> None:
+    response = await auth_client.patch(
+        f"/api/gtins/{gtin_seed['gtin_id']}", json={"gtin": "no-es-un-gtin"}
+    )
+    assert response.status_code == 422
