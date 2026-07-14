@@ -92,9 +92,14 @@ export default function ProductoDetallePage() {
       prev
         ? {
             ...prev,
-            gtin_registros: prev.gtin_registros.map((g) =>
-              g.id === gtinActualizado.id ? gtinActualizado : g,
-            ),
+            // Solo puede haber un GTIN vigente por producto — si este quedó
+            // vigente, el backend ya desmarcó al anterior (auditado); acá se
+            // refleja lo mismo en el estado local sin tener que recargar.
+            gtin_registros: prev.gtin_registros.map((g) => {
+              if (g.id === gtinActualizado.id) return gtinActualizado;
+              if (gtinActualizado.es_vigente && g.es_vigente) return { ...g, es_vigente: false };
+              return g;
+            }),
           }
         : prev,
     );

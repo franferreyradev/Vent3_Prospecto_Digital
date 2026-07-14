@@ -23,6 +23,7 @@ class GtinRegistroResponse(BaseModel):
 
 class GtinUpdateRequest(BaseModel):
     gtin: str | None = None
+    es_vigente: bool | None = None
     url_digital_link: str | None = None
     qr_generado: bool | None = None
     validado_gs1: bool | None = None

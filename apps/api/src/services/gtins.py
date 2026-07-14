@@ -39,6 +39,30 @@ class GtinsService:
                 detail="No se puede modificar el GTIN de un registro con QR ya generado",
             )
 
+        # Solo puede haber un GTIN vigente por producto (constraint parcial
+        # idx_gtin_vigente_unico). Al marcar uno como vigente, el anterior
+        # (si existe) se reemplaza automáticamente — mismo patrón que
+        # activar_prospecto() con los prospectos. Se confirma y audita el
+        # reemplazo ANTES de tocar la fila actual, para no chocar contra la
+        # constraint mientras ambas filas están "vigente=true" a la vez.
+        if campos_modificados.get("es_vigente") is True:
+            anterior_vigente = await self.repo.get_vigente_por_producto(
+                gtin_registro.producto_id, excluir_id=gtin_registro.id
+            )
+            if anterior_vigente is not None:
+                anterior_vigente.es_vigente = False
+                await self.repo.update(anterior_vigente)
+                await self.auditoria.registrar_cambio(
+                    tabla="gtin_registro",
+                    registro_id=anterior_vigente.id,
+                    accion="UPDATE",
+                    usuario_id=usuario_id,
+                    campo="es_vigente",
+                    valor_anterior=True,
+                    valor_nuevo=False,
+                    ip_origen=ip_origen,
+                )
+
         # Se capturan los valores anteriores y se aplica + confirma el UPDATE
         # ANTES de auditar: AuditoriaService.registrar_cambio() hace su propio
         # flush(), que arrastra cualquier cambio pendiente de esta sesión (no

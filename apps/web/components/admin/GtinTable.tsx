@@ -18,6 +18,7 @@ export default function GtinTable({ gtinRegistros, onActualizado }: GtinTablePro
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [numeroGtin, setNumeroGtin] = useState('');
   const [gtinBloqueado, setGtinBloqueado] = useState(false);
+  const [esVigente, setEsVigente] = useState(false);
   const [urlDigitalLink, setUrlDigitalLink] = useState('');
   const [qrGenerado, setQrGenerado] = useState(false);
   const [validadoGs1, setValidadoGs1] = useState(false);
@@ -28,6 +29,7 @@ export default function GtinTable({ gtinRegistros, onActualizado }: GtinTablePro
     setEditandoId(gtin.id);
     setNumeroGtin(gtin.gtin);
     setGtinBloqueado(gtin.qr_generado);
+    setEsVigente(gtin.es_vigente);
     setUrlDigitalLink(gtin.url_digital_link ?? '');
     setQrGenerado(gtin.qr_generado);
     setValidadoGs1(gtin.validado_gs1);
@@ -45,6 +47,7 @@ export default function GtinTable({ gtinRegistros, onActualizado }: GtinTablePro
     try {
       const actualizado = await actualizarGtin(id, {
         ...(gtinBloqueado ? {} : { gtin: numeroGtin }),
+        es_vigente: esVigente,
         url_digital_link: urlDigitalLink || null,
         qr_generado: qrGenerado,
         validado_gs1: validadoGs1,
@@ -101,10 +104,28 @@ export default function GtinTable({ gtinRegistros, onActualizado }: GtinTablePro
                 )}
               </td>
               <td className="px-4 py-3">
-                <Badge
-                  variant={gtin.es_vigente ? 'success' : 'neutral'}
-                  label={gtin.es_vigente ? 'Sí' : 'No'}
-                />
+                {enEdicion ? (
+                  <div className="flex flex-col gap-1">
+                    <label className="flex items-center gap-2 text-sm text-vent3-text-primary">
+                      <input
+                        type="checkbox"
+                        checked={esVigente}
+                        onChange={(e) => setEsVigente(e.target.checked)}
+                      />
+                      Vigente
+                    </label>
+                    {esVigente && !gtin.es_vigente && (
+                      <p className="font-sans text-xs font-normal text-vent3-text-secondary">
+                        Reemplaza al GTIN vigente actual de este producto, si hay uno.
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <Badge
+                    variant={gtin.es_vigente ? 'success' : 'neutral'}
+                    label={gtin.es_vigente ? 'Sí' : 'No'}
+                  />
+                )}
               </td>
 
               {enEdicion ? (

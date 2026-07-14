@@ -181,6 +181,70 @@ async def gtin_seed_2():
     await engine.dispose()
 
 
+@pytest_asyncio.fixture
+async def producto_dos_gtins():
+    """Un producto con dos GTIN: uno vigente y otro no — para probar el reemplazo automático."""
+    engine = create_async_engine(DATABASE_URL, poolclass=NullPool)
+    factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+    sufijo = uuid.uuid4().hex[:8]
+    producto_id = uuid.uuid4()
+    gtin_vigente_id = uuid.uuid4()
+    gtin_nuevo_id = uuid.uuid4()
+    gtin_vigente_numero = f"029{uuid.uuid4().int % 10**11:011d}"
+    gtin_nuevo_numero = f"029{uuid.uuid4().int % 10**11:011d}"
+
+    async with factory() as session:
+        await session.execute(
+            text(
+                "INSERT INTO productos "
+                "(id, codigo_interno, nombre_comercial, forma_farmaceutica, "
+                "presentacion_cantidad, canal, estado, tiene_prospecto, created_at, updated_at) "
+                "VALUES (:id, :codigo_interno, :nombre_comercial, 'comprimidos', "
+                "'x30', 'farmacia', 'activo', FALSE, NOW(), NOW())"
+            ),
+            {
+                "id": producto_id,
+                "codigo_interno": f"T25-V-{sufijo}",
+                "nombre_comercial": f"PRODUCTO DOS GTIN TEST {sufijo}",
+            },
+        )
+        await session.execute(
+            text(
+                "INSERT INTO gtin_registro "
+                "(id, producto_id, gtin, estado_gtin, es_vigente, url_digital_link, "
+                "qr_generado, validado_gs1, created_at) "
+                "VALUES "
+                "(:id_v, :producto_id, :gtin_v, 'activo', TRUE, NULL, FALSE, FALSE, NOW()), "
+                "(:id_n, :producto_id, :gtin_n, 'en_desarrollo', FALSE, NULL, FALSE, FALSE, NOW())"
+            ),
+            {
+                "id_v": gtin_vigente_id,
+                "gtin_v": gtin_vigente_numero,
+                "id_n": gtin_nuevo_id,
+                "gtin_n": gtin_nuevo_numero,
+                "producto_id": producto_id,
+            },
+        )
+        await session.commit()
+
+    yield {
+        "producto_id": producto_id,
+        "gtin_vigente_id": gtin_vigente_id,
+        "gtin_nuevo_id": gtin_nuevo_id,
+    }
+
+    async with factory() as session:
+        await session.execute(
+            text("DELETE FROM gtin_registro WHERE producto_id = :id"), {"id": producto_id}
+        )
+        await session.execute(
+            text("DELETE FROM productos WHERE id = :id"), {"id": producto_id}
+        )
+        await session.commit()
+    await engine.dispose()
+
+
 # ── TC1: sin autenticación → 401 ──────────────────────────────────────────────
 
 
@@ -391,3 +455,62 @@ async def test_actualizar_gtin_formato_invalido_retorna_422(
         f"/api/gtins/{gtin_seed['gtin_id']}", json={"gtin": "no-es-un-gtin"}
     )
     assert response.status_code == 422
+
+
+# ── TC9: PATCH es_vigente=true reemplaza automáticamente al anterior ──────
+
+
+@pytest.mark.asyncio
+async def test_actualizar_gtin_marca_vigente_reemplaza_al_anterior_y_audita(
+    auth_client: AsyncClient, producto_dos_gtins
+) -> None:
+    gtin_nuevo_id = producto_dos_gtins["gtin_nuevo_id"]
+    gtin_vigente_id = producto_dos_gtins["gtin_vigente_id"]
+
+    response = await auth_client.patch(
+        f"/api/gtins/{gtin_nuevo_id}", json={"es_vigente": True}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["es_vigente"] is True
+
+    engine = create_async_engine(DATABASE_URL, poolclass=NullPool)
+    try:
+        factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+        async with factory() as session:
+            result = await session.execute(
+                text("SELECT id, es_vigente FROM gtin_registro WHERE producto_id = :id"),
+                {"id": str(producto_dos_gtins["producto_id"])},
+            )
+            estados = {str(r[0]): r[1] for r in result.fetchall()}
+
+            audit_result = await session.execute(
+                text(
+                    "SELECT registro_id, valor_anterior, valor_nuevo FROM audit_log "
+                    "WHERE tabla_afectada = 'gtin_registro' AND campo_modificado = 'es_vigente' "
+                    "AND registro_id = ANY(:ids)"
+                ),
+                {"ids": [str(gtin_nuevo_id), str(gtin_vigente_id)]},
+            )
+            audit_rows = {str(r[0]): (r[1], r[2]) for r in audit_result.fetchall()}
+    finally:
+        await engine.dispose()
+
+    assert estados[str(gtin_nuevo_id)] is True
+    assert estados[str(gtin_vigente_id)] is False
+    assert audit_rows[str(gtin_nuevo_id)] == ("False", "True")
+    assert audit_rows[str(gtin_vigente_id)] == ("True", "False")
+
+
+# ── TC10: PATCH es_vigente=true sin conflicto no toca otras filas ─────────
+
+
+@pytest.mark.asyncio
+async def test_actualizar_gtin_marca_vigente_sin_conflicto_no_afecta_otras_filas(
+    auth_client: AsyncClient, gtin_seed
+) -> None:
+    response = await auth_client.patch(
+        f"/api/gtins/{gtin_seed['gtin_id']}", json={"es_vigente": True}
+    )
+    assert response.status_code == 200
+    assert response.json()["es_vigente"] is True
