@@ -128,12 +128,38 @@ async def test_registrar_cambio_convierte_valores_a_string(db_session: AsyncSess
 
 @pytest.mark.asyncio
 async def test_registrar_activacion_prospecto_crea_registro_correcto(db_session: AsyncSession, admin_id) -> None:
-    producto_id = uuid.uuid4()
     prospecto_id = uuid.uuid4()
     service = AuditoriaService(db_session)
 
     await service.registrar_activacion_prospecto(
-        producto_id=producto_id,
+        prospecto_id=prospecto_id,
+        usuario_id=admin_id,
+        estado_anterior="en_revision",
+    )
+
+    result = await db_session.execute(
+        text(
+            "SELECT tabla_afectada, accion, campo_modificado, valor_anterior, valor_nuevo "
+            "FROM audit_log WHERE registro_id = :rid"
+        ),
+        {"rid": str(prospecto_id)},
+    )
+    row = result.fetchone()
+
+    assert row is not None
+    assert row[0] == "prospectos"
+    assert row[1] == "UPDATE"
+    assert row[2] == "estado_vigencia"
+    assert row[3] == "en_revision"
+    assert row[4] == "vigente"
+
+
+@pytest.mark.asyncio
+async def test_registrar_reemplazo_prospecto_crea_registro_correcto(db_session: AsyncSession, admin_id) -> None:
+    prospecto_id = uuid.uuid4()
+    service = AuditoriaService(db_session)
+
+    await service.registrar_reemplazo_prospecto(
         prospecto_id=prospecto_id,
         usuario_id=admin_id,
     )
@@ -148,11 +174,11 @@ async def test_registrar_activacion_prospecto_crea_registro_correcto(db_session:
     row = result.fetchone()
 
     assert row is not None
-    assert row[0] == "producto_prospectos"
+    assert row[0] == "prospectos"
     assert row[1] == "UPDATE"
     assert row[2] == "estado_vigencia"
-    assert row[3] == "en_revision"
-    assert row[4] == "vigente"
+    assert row[3] == "vigente"
+    assert row[4] == "reemplazado"
 
 
 # ── TC4: wrapper registrar_cambio_estado_producto ────────────────────────────

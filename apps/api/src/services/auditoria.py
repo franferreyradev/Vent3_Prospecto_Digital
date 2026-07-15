@@ -49,19 +49,36 @@ class AuditoriaService:
 
     async def registrar_activacion_prospecto(
         self,
-        producto_id: UUID,
+        prospecto_id: UUID,
+        usuario_id: UUID,
+        estado_anterior: str,
+        ip_origen: str | None = None,
+    ) -> None:
+        await self.registrar_cambio(
+            tabla="prospectos",
+            registro_id=prospecto_id,
+            accion="UPDATE",
+            usuario_id=usuario_id,
+            campo="estado_vigencia",
+            valor_anterior=estado_anterior,
+            valor_nuevo="vigente",
+            ip_origen=ip_origen,
+        )
+
+    async def registrar_reemplazo_prospecto(
+        self,
         prospecto_id: UUID,
         usuario_id: UUID,
         ip_origen: str | None = None,
     ) -> None:
         await self.registrar_cambio(
-            tabla="producto_prospectos",
+            tabla="prospectos",
             registro_id=prospecto_id,
             accion="UPDATE",
             usuario_id=usuario_id,
             campo="estado_vigencia",
-            valor_anterior="en_revision",
-            valor_nuevo="vigente",
+            valor_anterior="vigente",
+            valor_nuevo="reemplazado",
             ip_origen=ip_origen,
         )
 

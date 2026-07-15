@@ -103,15 +103,25 @@ class ProspectosService:
                 status_code=409, detail="El prospecto no está en estado en_revision"
             )
 
+        estado_anterior = prospecto.estado_vigencia
+
         resultado = await self.repo.activar_prospecto(
             producto_id, prospecto.id, prospecto.tipo_audiencia
         )
 
         await self.auditoria.registrar_activacion_prospecto(
-            producto_id=producto_id,
             prospecto_id=prospecto.id,
             usuario_id=usuario_id,
+            estado_anterior=estado_anterior,
             ip_origen=ip_origen,
         )
+
+        prospecto_reemplazado = resultado.get("reemplazado")
+        if prospecto_reemplazado is not None:
+            await self.auditoria.registrar_reemplazo_prospecto(
+                prospecto_id=prospecto_reemplazado.id,
+                usuario_id=usuario_id,
+                ip_origen=ip_origen,
+            )
 
         return resultado
