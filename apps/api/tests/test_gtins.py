@@ -10,6 +10,7 @@ import os
 import uuid
 from collections.abc import AsyncGenerator
 
+import bcrypt
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
@@ -18,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.pool import NullPool
 
 from src.core.db import get_db
-from src.core.security import COOKIE_NAME
+from src.core.security import COOKIE_NAME, crear_access_token
 from src.main import app
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
@@ -77,6 +78,56 @@ async def auth_client(client: AsyncClient) -> AsyncClient:
     assert token is not None
     client.cookies.set(COOKIE_NAME, token)
     return client
+
+
+@pytest_asyncio.fixture
+async def usuario_con_rol(db_ok: None):
+    """Crea un usuario de prueba con el rol indicado y devuelve un cliente ya autenticado.
+
+    A diferencia de auth_client (que loguea al admin real vía /api/auth/login), acá se
+    inserta el usuario directo por SQL y se firma el JWT con crear_access_token — mismo
+    patrón que test_autorizacion.py::test_endpoint_admin_usuario_inactivo_retorna_401 —
+    porque no existe (ni debería, es MVP de un solo admin) un flujo de alta de usuarios
+    editor/lector vía API todavía.
+    """
+    engine = create_async_engine(DATABASE_URL, poolclass=NullPool)
+    factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    emails_creados: list[str] = []
+
+    async def _crear(rol: str) -> AsyncClient:
+        email = f"test_{rol}_{uuid.uuid4().hex[:8]}@vent3.test"
+        password_hash = bcrypt.hashpw(b"test-pass-xyz", bcrypt.gensalt(rounds=4)).decode()
+        async with factory() as session:
+            await session.execute(
+                text(
+                    "INSERT INTO usuarios (id, email, nombre, password_hash, rol, activo, intentos_fallidos, created_at) "
+                    "VALUES (gen_random_uuid(), :email, :nombre, :hash, :rol, TRUE, 0, NOW())"
+                ),
+                {"email": email, "nombre": f"Test {rol}", "hash": password_hash, "rol": rol},
+            )
+            await session.commit()
+
+        token = crear_access_token({"sub": email})
+        client = AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
+        client.cookies.set(COOKIE_NAME, token)
+        emails_creados.append(email)
+        return client
+
+    try:
+        yield _crear
+    finally:
+        # No se borra el usuario: los PATCH del test dejan filas en audit_log
+        # (append-only, FK a usuarios.id — CLAUDE.md prohíbe DELETE en tablas
+        # de negocio) que quedarían huérfanas. Se aplica el mismo soft-delete
+        # que usa el resto del proyecto (campo `activo`).
+        async with factory() as session:
+            for email in emails_creados:
+                await session.execute(
+                    text("UPDATE usuarios SET activo = FALSE WHERE email = :email"),
+                    {"email": email},
+                )
+            await session.commit()
+        await engine.dispose()
 
 
 @pytest_asyncio.fixture
@@ -514,3 +565,108 @@ async def test_actualizar_gtin_marca_vigente_sin_conflicto_no_afecta_otras_filas
     )
     assert response.status_code == 200
     assert response.json()["es_vigente"] is True
+
+
+# ── TC11: rol lector no tiene acceso al endpoint ──────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_actualizar_gtin_rol_lector_retorna_403(
+    usuario_con_rol, gtin_seed
+) -> None:
+    lector = await usuario_con_rol("lector")
+    response = await lector.patch(
+        f"/api/gtins/{gtin_seed['gtin_id']}", json={"validado_gs1": True}
+    )
+    assert response.status_code == 403
+    await lector.aclose()
+
+
+# ── TC12: editor puede cargar gtin + marcar qr_generado por primera vez ───
+
+
+@pytest.mark.asyncio
+async def test_actualizar_gtin_rol_editor_carga_inicial_permitida(
+    usuario_con_rol, gtin_seed
+) -> None:
+    editor = await usuario_con_rol("editor")
+    url = f"https://www.vent3.com.ar/01/{gtin_seed['gtin']}"
+
+    response = await editor.patch(
+        f"/api/gtins/{gtin_seed['gtin_id']}",
+        json={"url_digital_link": url, "qr_generado": True},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["qr_generado"] is True
+    await editor.aclose()
+
+
+# ── TC13: editor no puede desmarcar qr_generado ya generado ───────────────
+
+
+@pytest.mark.asyncio
+async def test_actualizar_gtin_rol_editor_no_puede_desmarcar_qr_generado(
+    usuario_con_rol, gtin_seed
+) -> None:
+    editor = await usuario_con_rol("editor")
+    gtin_id = gtin_seed["gtin_id"]
+
+    marcar = await editor.patch(f"/api/gtins/{gtin_id}", json={"qr_generado": True})
+    assert marcar.status_code == 200
+
+    response = await editor.patch(f"/api/gtins/{gtin_id}", json={"qr_generado": False})
+    assert response.status_code == 403
+
+    engine = create_async_engine(DATABASE_URL, poolclass=NullPool)
+    try:
+        factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+        async with factory() as session:
+            result = await session.execute(
+                text("SELECT qr_generado FROM gtin_registro WHERE id = :id"),
+                {"id": str(gtin_id)},
+            )
+            qr_generado_actual = result.scalar_one()
+    finally:
+        await engine.dispose()
+
+    assert qr_generado_actual is True
+    await editor.aclose()
+
+
+# ── TC14: editor no puede modificar url_digital_link con qr ya generado ───
+
+
+@pytest.mark.asyncio
+async def test_actualizar_gtin_rol_editor_no_puede_modificar_url_con_qr_generado(
+    usuario_con_rol, gtin_seed
+) -> None:
+    editor = await usuario_con_rol("editor")
+    gtin_id = gtin_seed["gtin_id"]
+
+    marcar = await editor.patch(f"/api/gtins/{gtin_id}", json={"qr_generado": True})
+    assert marcar.status_code == 200
+
+    response = await editor.patch(
+        f"/api/gtins/{gtin_id}",
+        json={"url_digital_link": "https://www.vent3.com.ar/01/otra-url"},
+    )
+    assert response.status_code == 403
+    await editor.aclose()
+
+
+# ── TC15: admin sí puede desmarcar qr_generado (excepción exclusiva de admin) ──
+
+
+@pytest.mark.asyncio
+async def test_actualizar_gtin_admin_puede_desmarcar_qr_generado(
+    auth_client: AsyncClient, gtin_seed
+) -> None:
+    gtin_id = gtin_seed["gtin_id"]
+
+    marcar = await auth_client.patch(f"/api/gtins/{gtin_id}", json={"qr_generado": True})
+    assert marcar.status_code == 200
+
+    response = await auth_client.patch(f"/api/gtins/{gtin_id}", json={"qr_generado": False})
+    assert response.status_code == 200
+    assert response.json()["qr_generado"] is False

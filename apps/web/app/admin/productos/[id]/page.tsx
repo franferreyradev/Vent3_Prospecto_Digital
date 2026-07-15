@@ -10,6 +10,7 @@ import {
   listarProspectos,
   activarProspecto,
   obtenerUrlDescargaProspecto,
+  getMe,
 } from '../../../../lib/api-client';
 import GtinTable from '../../../../components/admin/GtinTable';
 import UploadProspecto from '../../../../components/admin/UploadProspecto';
@@ -33,6 +34,7 @@ export default function ProductoDetallePage() {
 
   const [producto, setProducto] = useState<Producto | null>(null);
   const [prospectos, setProspectos] = useState<Prospecto[]>([]);
+  const [rolUsuario, setRolUsuario] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [mostrarUpload, setMostrarUpload] = useState(false);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -40,12 +42,14 @@ export default function ProductoDetallePage() {
   const cargarDatos = useCallback(async () => {
     setLoading(true);
     try {
-      const [productoRes, prospectosRes] = await Promise.all([
+      const [productoRes, prospectosRes, usuarioRes] = await Promise.all([
         obtenerProducto(productoId),
         listarProspectos({ producto_id: productoId, limit: 100 }),
+        getMe(),
       ]);
       setProducto(productoRes);
       setProspectos(prospectosRes.data);
+      setRolUsuario(usuarioRes.rol);
     } finally {
       setLoading(false);
     }
@@ -167,7 +171,11 @@ export default function ProductoDetallePage() {
 
       <div className="mb-8">
         <h2 className="mb-2 text-sm font-medium text-vent3-text-primary">GTINs</h2>
-        <GtinTable gtinRegistros={producto.gtin_registros} onActualizado={handleGtinActualizado} />
+        <GtinTable
+          gtinRegistros={producto.gtin_registros}
+          onActualizado={handleGtinActualizado}
+          rolUsuario={rolUsuario ?? 'lector'}
+        />
       </div>
 
       <div className="mb-4 flex items-center justify-between">

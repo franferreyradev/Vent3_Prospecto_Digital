@@ -5,9 +5,18 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.gtin_registro import GtinRegistro
+from src.models.usuario import Usuario
 from src.repositories.gtins import GtinsRepository
 from src.schemas.gtin import GtinUpdateRequest
 from src.services.auditoria import AuditoriaService
+
+# Una vez generado el QR, "qr_generado" y la URL de Digital Link pueden estar
+# ya impresos en packaging físico en circulación (RNF-08). Revertir la marca
+# o cambiar la URL rompería el código impreso. Esto queda como vía de
+# corrección de error humano exclusiva del rol admin (ver
+# docs/adr/002-inmutabilidad-gtin-qr.md) — un editor puede cargarlos una sola
+# vez, nunca modificarlos después de guardados con qr_generado=true.
+CAMPOS_SOLO_ADMIN_CON_QR_GENERADO = {"qr_generado", "url_digital_link"}
 
 
 class GtinsService:
@@ -20,7 +29,7 @@ class GtinsService:
         self,
         id: UUID,
         datos: GtinUpdateRequest,
-        usuario_id: UUID,
+        usuario: Usuario,
         ip_origen: str | None,
     ) -> GtinRegistro:
         gtin_registro = await self.repo.get_by_id(id)
@@ -31,12 +40,24 @@ class GtinsService:
 
         # El GTIN queda permanente una vez generado el QR: ese número puede
         # estar ya impreso en packaging físico, cambiarlo rompería el código
-        # en circulación (RNF-08). Antes de eso, es corregible libremente
-        # mientras se carga y cruza contra el registro real de GS1.
+        # en circulación (RNF-08). Esto es incondicional para cualquier rol:
+        # la única vía de corrección es desmarcar "qr_generado" primero (ver
+        # chequeo siguiente, exclusivo de admin) y recién ahí editar el GTIN
+        # en un segundo PATCH.
         if "gtin" in campos_modificados and gtin_registro.qr_generado:
             raise HTTPException(
                 status_code=409,
                 detail="No se puede modificar el GTIN de un registro con QR ya generado",
+            )
+
+        if (
+            gtin_registro.qr_generado
+            and usuario.rol != "admin"
+            and CAMPOS_SOLO_ADMIN_CON_QR_GENERADO & campos_modificados.keys()
+        ):
+            raise HTTPException(
+                status_code=403,
+                detail="Solo un administrador puede modificar un registro con QR ya generado",
             )
 
         # Solo puede haber un GTIN vigente por producto (constraint parcial
@@ -56,7 +77,7 @@ class GtinsService:
                     tabla="gtin_registro",
                     registro_id=anterior_vigente.id,
                     accion="UPDATE",
-                    usuario_id=usuario_id,
+                    usuario_id=usuario.id,
                     campo="es_vigente",
                     valor_anterior=True,
                     valor_nuevo=False,
@@ -91,7 +112,7 @@ class GtinsService:
                 tabla="gtin_registro",
                 registro_id=gtin_registro.id,
                 accion="UPDATE",
-                usuario_id=usuario_id,
+                usuario_id=usuario.id,
                 campo=campo,
                 valor_anterior=valores_anteriores[campo],
                 valor_nuevo=valor_nuevo,
