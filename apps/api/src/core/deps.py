@@ -42,6 +42,14 @@ async def require_admin(
     return current_user
 
 
+async def require_editor_or_admin(
+    current_user: Usuario = Depends(get_current_user),
+) -> Usuario:
+    if current_user.rol not in ("admin", "editor"):
+        raise HTTPException(status_code=403, detail="Permisos insuficientes")
+    return current_user
+
+
 async def require_internal_token(request: Request) -> None:
     token = request.headers.get("X-Internal-Token")
     if not token or not secrets.compare_digest(token, settings.INTERNAL_API_TOKEN):
