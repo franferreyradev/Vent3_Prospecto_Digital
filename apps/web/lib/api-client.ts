@@ -214,3 +214,81 @@ export async function listarAuditLog(
 ): Promise<AuditLogListResponse> {
   return apiFetch<AuditLogListResponse>(`/api/audit-log${buildQuery(params)}`);
 }
+
+// ── Invitaciones ──────────────────────────────────────────────────────
+
+type InvitacionCreateRequest = components['schemas']['InvitacionCreateRequest'];
+type InvitacionCreadaResponse = components['schemas']['InvitacionCreadaResponse'];
+type InvitacionResponse = components['schemas']['InvitacionResponse'];
+type InvitacionListResponse = components['schemas']['PaginatedResponse_InvitacionResponse_'];
+type InvitacionValidarResponse = components['schemas']['InvitacionValidarResponse'];
+type InvitacionActivarRequest = components['schemas']['InvitacionActivarRequest'];
+
+export async function crearInvitacion(
+  body: InvitacionCreateRequest,
+): Promise<InvitacionCreadaResponse> {
+  return apiFetch<InvitacionCreadaResponse>('/api/invitaciones', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export interface ListarInvitacionesParams {
+  estado?: string;
+  page?: number;
+  limit?: number;
+  [key: string]: string | number | undefined;
+}
+
+export async function listarInvitaciones(
+  params: ListarInvitacionesParams = {},
+): Promise<InvitacionListResponse> {
+  return apiFetch<InvitacionListResponse>(`/api/invitaciones${buildQuery(params)}`);
+}
+
+export async function validarInvitacion(token: string): Promise<InvitacionValidarResponse> {
+  return apiFetch<InvitacionValidarResponse>(`/api/invitaciones/validar/${token}`, {
+    redirectOn401: false,
+  });
+}
+
+export async function activarInvitacion(
+  token: string,
+  body: InvitacionActivarRequest,
+): Promise<UsuarioResponse> {
+  return apiFetch<UsuarioResponse>(`/api/invitaciones/${token}/activar`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+    redirectOn401: false,
+  });
+}
+
+// ── Usuarios ──────────────────────────────────────────────────────────
+
+type UsuarioListResponse = components['schemas']['PaginatedResponse_UsuarioResponse_'];
+type UsuarioCambiarEstadoRequest = components['schemas']['UsuarioCambiarEstadoRequest'];
+
+export interface ListarUsuariosParams {
+  rol?: string;
+  activo?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+  [key: string]: string | number | undefined;
+}
+
+export async function listarUsuarios(
+  params: ListarUsuariosParams = {},
+): Promise<UsuarioListResponse> {
+  return apiFetch<UsuarioListResponse>(`/api/usuarios${buildQuery(params)}`);
+}
+
+export async function cambiarEstadoUsuario(
+  id: string,
+  body: UsuarioCambiarEstadoRequest,
+): Promise<UsuarioResponse> {
+  return apiFetch<UsuarioResponse>(`/api/usuarios/${id}/estado`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}

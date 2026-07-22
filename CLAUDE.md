@@ -101,7 +101,7 @@ documentar el análisis en `docs/adr/` y consultar antes de cambiar cualquier co
 
 5. **Productos de licitación y oncológicos (línea MU-) están fuera del MVP.** Existen en la DB pero no generan flujo activo. No implementar lógica especial para ellos hasta nueva instrucción de ANMAT.
 
-6. **Panel de gestión de múltiples usuarios es post-MVP.** El MVP tiene un único usuario admin. La tabla `usuarios` existe y está preparada, pero la UI de gestión no se implementa ahora.
+6. ~~Panel de gestión de múltiples usuarios es post-MVP.~~ **Revertida el 22 jul 2026** (ver `docs/adr/003-gestion-usuarios-post-mvp.md`) — el MVP ya fue presentado, gestión de usuarios pasó a ser tarea activa (T-USUARIOS). Alta vía link de invitación de un solo uso, roles `admin`/`editor` habilitados; `lector` queda en el enum sin flujo de alta hasta que haya caso de uso concreto.
 
 ---
 
