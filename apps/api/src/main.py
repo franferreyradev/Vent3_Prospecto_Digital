@@ -12,8 +12,10 @@ from src.routers.audit import router as audit_router
 from src.routers.auth import router as auth_router
 from src.routers.gtins import router as gtins_router
 from src.routers.internal import router as internal_router
+from src.routers.invitaciones import router as invitaciones_router
 from src.routers.productos import router as productos_router
 from src.routers.prospectos import router as prospectos_router
+from src.routers.usuarios import router as usuarios_router
 from src.schemas import (
     AuditLogResponse,
     GtinRegistroResponse,
@@ -110,6 +112,8 @@ app.include_router(prospectos_router)
 app.include_router(gtins_router)
 app.include_router(internal_router)
 app.include_router(audit_router)
+app.include_router(invitaciones_router)
+app.include_router(usuarios_router)
 
 
 @app.get("/health", response_model=HealthResponse)

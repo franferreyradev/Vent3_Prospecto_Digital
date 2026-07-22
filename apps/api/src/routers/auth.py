@@ -40,6 +40,9 @@ async def login(
             detail="Cuenta bloqueada temporalmente. Intentar en 15 minutos.",
         )
 
+    if not usuario.activo:
+        raise HTTPException(status_code=401, detail="Usuario inactivo")
+
     if not verificar_password(body.password, usuario.password_hash):
         await repo.registrar_intento_fallido(usuario)
         raise HTTPException(status_code=401, detail="Credenciales inválidas")

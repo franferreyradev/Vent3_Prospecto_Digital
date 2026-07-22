@@ -20,3 +20,7 @@ class UsuarioResponse(BaseModel):
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8)
+
+
+class UsuarioCambiarEstadoRequest(BaseModel):
+    activo: bool

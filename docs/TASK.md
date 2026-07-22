@@ -7,9 +7,12 @@
 
 ## ESTADO ACTUAL
 
-**Tarea en progreso:** Ninguna — T24 completada. Gaps de backend y UI de T25 (endpoint de GTINs, panel de gestión, corrección del número de GTIN pre-QR, y marcar GTIN vigente) resueltos por adelantado.
+**Tarea en progreso:** Ninguna — T-USUARIOS (gestión de usuarios vía invitación) completada. T25 queda pausada (ver ADR 003) y sigue siendo la próxima tarea del roadmap original.
 **Bloqueantes activos:** Ninguno operativo. Pendiente real: los 167 GTIN de la DB son placeholders (`02...`, GS1 Restricted Circulation Number) generados por T14 — hay que cargar los GTIN reales de GS1 antes de generar cualquier QR de verdad, y marcar cada uno como vigente desde la UI para que el resolver público lo encuentre. Pendientes menores arrastrados de T23/T24: datos de contacto placeholders, azul corporativo pendiente de confirmar con marca, imagen de Open Graph sin asset real.
-**Última sesión:** 8 de julio de 2026 — T24 completada + gaps de T25 resueltos por adelantado: `PATCH /api/gtins/{id}` (backend, con auditoría), su UI de gestión en `admin/productos/[id]`, el campo `gtin` corregible mientras `qr_generado=false` (bloqueado automáticamente después — RNF-08), y `es_vigente` editable con reemplazo automático del GTIN vigente anterior del mismo producto (solo puede haber uno, constraint `idx_gtin_vigente_unico`). Bug real encontrado y arreglado en el camino: `AuditoriaService.registrar_cambio()` tragaba silenciosamente conflictos de integridad por un `flush()` que arrastraba cambios pendientes no relacionados de la misma sesión — reordenado para confirmar el `UPDATE` antes de auditar. Suite de backend: 112/114 verdes (2 fallos preexistentes de `test_auth.py` desde T9, sin relación). Verificado end-to-end en navegador (Playwright) en todos los casos.
+**[BLOQUEANTE menor, no operativo] 22 jul 2026:** `test_auth.py` tiene 2 fallos preexistentes (`test_login_email_inexistente_retorna_401...`, `test_lockout_tras_cinco_intentos_fallidos`) causados por una versión más nueva de `email-validator` (2.3.0) que ahora rechaza el TLD `.test` como "special-use reserved" incluso sin chequeo de deliverability — antes pasaban. Confirmado que el bug es previo a esta sesión (falla igual en `main` sin los cambios de T-USUARIOS). No se corrigió: no es parte del alcance de esta tarea y requiere decidir si se pinea `email-validator` o se migran los emails de test de `@algo.test` a un dominio real (`@qa.vent3.com.ar`, patrón ya adoptado en `test_invitaciones.py`/`test_usuarios.py`).
+**Última sesión:** 22 de julio de 2026 — T-USUARIOS completada (ver detalle más abajo).
+
+**[T-USUARIOS · 22 jul 2026]** Gestión de usuarios vía invitación de un solo uso — reversión de la decisión #6 del CLAUDE.md, documentada en `docs/adr/003-gestion-usuarios-post-mvp.md`. Backend: tabla `invitaciones_usuario` (migración 005), `InvitacionesService`/`UsuariosService`, endpoints `/api/invitaciones` (crear/listar/validar/activar) y `/api/usuarios` (listar/cambiar estado). Frontend: `admin/usuarios` (listado + modal de invitación) y página pública `activar-invitacion/[token]`. Bug real encontrado y corregido en el camino: `POST /api/auth/login` nunca chequeaba `usuario.activo` — un usuario desactivado podía loguearse igual y obtener una cookie de sesión válida (solo se bloqueaba después, en el primer request protegido). Ahora `login` rechaza con 401 "Usuario inactivo" antes de verificar la contraseña. Suite de backend: 133/135 verdes (los 2 fallos preexistentes de arriba). Verificado end-to-end en navegador (Playwright): invitación → activación → login bloqueado tras desactivar, sin errores de consola.: `PATCH /api/gtins/{id}` (backend, con auditoría), su UI de gestión en `admin/productos/[id]`, el campo `gtin` corregible mientras `qr_generado=false` (bloqueado automáticamente después — RNF-08), y `es_vigente` editable con reemplazo automático del GTIN vigente anterior del mismo producto (solo puede haber uno, constraint `idx_gtin_vigente_unico`). Bug real encontrado y arreglado en el camino: `AuditoriaService.registrar_cambio()` tragaba silenciosamente conflictos de integridad por un `flush()` que arrastraba cambios pendientes no relacionados de la misma sesión — reordenado para confirmar el `UPDATE` antes de auditar. Suite de backend: 112/114 verdes (2 fallos preexistentes de `test_auth.py` desde T9, sin relación). Verificado end-to-end en navegador (Playwright) en todos los casos.
 **Nota lateral:** en las verificaciones E2E se actualizaron realmente varios GTIN en la DB local de desarrollo (`vent3_db`, no producción): `02000000000572` (IBUPROFENO, `url_digital_link`/`qr_generado=true`), `02000000001340` (PARACETAMOL, gtin cambiado a `77900000000015` de prueba), y `02000000001135` (OMEPRAZOL, `es_vigente=true`) — son datos válidos de desarrollo, se dejaron así, no se revirtieron.
 **Incidente de deploy — riesgo estructural confirmado, sin mitigación de raíz todavía.** Los 3 pushes de código de hoy dispararon la misma carrera entre Railway (backend) y Vercel (frontend), 2 de 3 veces con build roto en producción: el prebuild del frontend descarga `openapi.json` de `https://api.vent3.com.ar` en cada build, y Railway no tiene ninguna garantía de que el tráfico ya esté rotado al contenedor nuevo cuando Vercel arranca. **Importante:** `railway deployment list` mostrando `SUCCESS` NO es señal confiable de que el schema nuevo ya se sirve — se confirmó que el build de Vercel falló igual 10+ segundos después de ver `SUCCESS` en Railway. La única señal confiable verificada es un `curl` directo a `https://api.vent3.com.ar/openapi.json` chequeando el campo/endpoint nuevo del commit. Ambas veces que falló se resolvió con `npx vercel redeploy <url> --target production` una vez confirmado con curl directo que la API ya estaba al día. Sin mitigación de raíz implementada — a evaluar cuando el usuario priorice (pinnear `CONTRACTS_API_URL` a un entorno estable, esperar explícitamente unos minutos entre push de backend+frontend en el mismo commit, o generar contratos de forma versionada en vez de contra la API en vivo).
 
@@ -18,6 +21,8 @@
 ## PRÓXIMA TAREA
 
 **T25 — Generación de QRs en portal GS1 Argentina**
+
+(T-USUARIOS se insertó antes de T25 por decisión del usuario — ver ADR 003 y nota de sesión del 22 jul 2026 más arriba. Ya completada, T25 retoma como próxima tarea del roadmap original.)
 
 Referencia completa en `docs/PLAN.md § Sección 3 · T25`. Tarea operativa (portal GS1 + descarga de imágenes) — todo el código que necesita ya está resuelto: `PATCH /api/gtins/{id}` auditado por RNF-07, UI de gestión en `admin/productos/[id]`, el campo `gtin` corregible desde esa misma pantalla mientras no tenga QR generado, y `es_vigente` marcable con reemplazo automático. **Paso previo obligatorio no cubierto por ningún código:** reemplazar los 167 GTIN placeholder (`02...`) por los GTIN reales que Vent3 ya tiene asignados en GS1 Argentina, y marcar cada uno como vigente — el QR tiene que codificar el GTIN de verdad, no el de desarrollo, y el resolver público solo encuentra GTIN con `es_vigente=true`. Se puede hacer de a uno, iterando y cruzando contra GS1, directamente desde la UI (queda auditado). Depende de T18 (resolver del QR), ya completada.
 
@@ -64,6 +69,10 @@ Referencia completa en `docs/PLAN.md § Sección 3 · T25`. Tarea operativa (por
 - [x] **T23** — Páginas institucionales (home, nosotros, productos, contacto) ✅ · 8 jul 2026
 - [x] **T24** — SEO, metadata y accesibilidad ✅ · 8 jul 2026
 
+### Fuera de fase — insertada por decisión del usuario (ver ADR 003)
+
+- [x] **T-USUARIOS** — Gestión de usuarios vía invitación de un solo uso ✅ · 22 jul 2026
+
 ### FASE 5 — Operativa GS1 y entrega
 
 - [ ] **T25** — Generación de QRs en portal GS1 Argentina
@@ -99,6 +108,7 @@ Referencia completa en `docs/PLAN.md § Sección 3 · T25`. Tarea operativa (por
 - [x] **T22** — Vista de audit log ✅ · 8 jul 2026
 - [x] **T23** — Páginas institucionales (home, nosotros, productos, contacto) ✅ · 8 jul 2026
 - [x] **T24** — SEO, metadata y accesibilidad ✅ · 8 jul 2026
+- [x] **T-USUARIOS** — Gestión de usuarios vía invitación de un solo uso ✅ · 22 jul 2026
 
 ---
 
@@ -114,7 +124,7 @@ Referencia completa en `docs/PLAN.md § Sección 3 · T25`. Tarea operativa (por
 | **Frontend** | Next.js (App Router, SSR) · deploy en Vercel |
 | **Storage PDFs** | Cloudflare R2 |
 | **Base de datos** | PostgreSQL · 9 tablas · diseño aprobado en BD_Diseño_v2.docx |
-| **Auth** | JWT en cookie httpOnly · bcrypt costo 12 · 1 usuario admin MVP |
+| **Auth** | JWT en cookie httpOnly · bcrypt costo 12 · multiusuario (admin/editor) vía invitación desde T-USUARIOS |
 | **Documentos de referencia** | docs/SPEC.md, docs/PLAN.md, docs/BD_Diseño_v2.docx |
 
 ### Decisiones críticas que no deben revertirse
@@ -123,7 +133,7 @@ Referencia completa en `docs/PLAN.md § Sección 3 · T25`. Tarea operativa (por
 - Un producto con dos versiones de prospecto usa **una sola URL** con landing de selección de perfil (Opción A). No dos QRs.
 - Productos de licitación y oncológicos (línea MU-) están **fuera del scope del MVP**. Existen en la DB pero no generan flujo activo.
 - El `audit_log` es **inmutable a nivel de base de datos** (trigger SQL + permisos de rol), no solo a nivel de aplicación.
-- El panel de **gestión de múltiples usuarios es post-MVP**. En MVP solo existe un usuario admin.
+- ~~El panel de gestión de múltiples usuarios es post-MVP~~ — revertido en T-USUARIOS (22 jul 2026, ver ADR 003). Roles `admin`/`editor` disponibles vía invitación de un solo uso; `lector` queda en el enum sin flujo de alta.
 
 ---
 

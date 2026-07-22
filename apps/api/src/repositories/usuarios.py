@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.usuario import Usuario
@@ -48,3 +48,38 @@ class UsuariosRepository(BaseRepository[Usuario]):
         if bloqueado_hasta.tzinfo is None:
             bloqueado_hasta = bloqueado_hasta.replace(tzinfo=timezone.utc)
         return bloqueado_hasta > now
+
+    async def get_filtrado(
+        self,
+        rol: str | None = None,
+        activo: bool | None = None,
+        search: str | None = None,
+        offset: int = 0,
+        limit: int = 50,
+    ) -> tuple[list[Usuario], int]:
+        query = select(Usuario)
+        count_query = select(func.count()).select_from(Usuario)
+
+        if rol:
+            query = query.where(Usuario.rol == rol)
+            count_query = count_query.where(Usuario.rol == rol)
+        if activo is not None:
+            query = query.where(Usuario.activo == activo)
+            count_query = count_query.where(Usuario.activo == activo)
+        if search:
+            filtro_busqueda = or_(
+                Usuario.email.ilike(f"%{search}%"),
+                Usuario.nombre.ilike(f"%{search}%"),
+            )
+            query = query.where(filtro_busqueda)
+            count_query = count_query.where(filtro_busqueda)
+
+        total_result = await self.session.execute(count_query)
+        total = total_result.scalar_one()
+
+        result = await self.session.execute(
+            query.order_by(Usuario.created_at.desc()).offset(offset).limit(limit)
+        )
+        usuarios = list(result.scalars().all())
+
+        return usuarios, total
